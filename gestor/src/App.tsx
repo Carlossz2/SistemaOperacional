@@ -58,6 +58,7 @@ function Shell() {
         </button>
         <b>Gestor DR</b>
       </div>
+      {open && <div className="drawer-bg" onClick={() => setOpen(false)} />}
       <div className="shell">
         <aside className={`sidebar ${open ? 'open' : ''}`}>
           <div className="brand">

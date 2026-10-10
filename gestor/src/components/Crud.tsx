@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import type { Collection, Database } from '../lib/types';
 import { defaultRate, remove, uid, upsert, useDb } from '../lib/store';
 import { today } from '../lib/dates';
+import { decimalInput, parseDecimal } from '../lib/format';
 import { download, toCsv } from '../lib/io';
 import { FilterBar, usePeriod } from '../lib/period';
 import { Icon } from './Icon';
@@ -42,6 +43,8 @@ interface Props<T extends { id: string }> {
   footer?: (items: T[], db: Database) => ReactNode[];
   search?: (item: T, db: Database) => string;
   emptyHint?: ReactNode;
+  /** Retorna um motivo para bloquear a exclusão (ex.: produto com lançamentos) */
+  blockDelete?: (item: T, db: Database) => string | null;
 }
 
 export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
@@ -129,7 +132,11 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
                       <button
                         className="ghost danger"
                         title="Excluir"
-                        onClick={() => confirm('Excluir este registro?') && remove(props.collection, it.id)}
+                        onClick={() => {
+                          const reason = props.blockDelete?.(it, db);
+                          if (reason) return alert(reason);
+                          if (confirm('Excluir este registro?')) remove(props.collection, it.id);
+                        }}
                       >
                         <Icon name="trash" size={16} />
                       </button>
@@ -180,17 +187,31 @@ function EntryForm(p: {
   onSave: (d: Draft) => void;
   onCancel: () => void;
 }) {
-  const [d, setD] = useState<Draft>(p.draft);
+  // Campos numéricos são editados como texto para aceitar vírgula decimal ("1.234,56")
+  const numericKeys = [...p.fields.filter((f) => f.type === 'number').map((f) => f.key), 'rate'];
+  const [d, setD] = useState<Draft>(() => {
+    const init = { ...p.draft };
+    for (const k of numericKeys) if (k in init) init[k] = decimalInput(init[k]);
+    return init;
+  });
+  const [error, setError] = useState('');
   const set = (k: string, v: unknown) => setD((prev) => ({ ...prev, [k]: v }));
   const currencies = Object.keys(p.db.settings.rates);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const out: Draft = { ...d };
-    for (const f of p.fields) {
-      if (f.type === 'number') out[f.key] = out[f.key] === '' || out[f.key] === undefined ? 0 : Number(out[f.key]);
+    for (const f of p.fields.filter((x) => x.type === 'number')) {
+      const v = parseDecimal(out[f.key]);
+      if (v === null && f.required) return setError(`Preencha "${f.label}".`);
+      if (v !== null && (Number.isNaN(v) || v < 0)) return setError(`Valor inválido em "${f.label}". Use números, ex.: 1.234,56`);
+      out[f.key] = v ?? 0;
     }
-    if ('rate' in out) out.rate = Number(out.rate) || 1;
+    if ('rate' in out) {
+      const r = out.currency === p.db.settings.baseCurrency ? 1 : parseDecimal(out.rate);
+      if (r === null || Number.isNaN(r) || r <= 0) return setError('Cotação inválida: informe quanto vale 1 unidade da moeda, ex.: 5,40');
+      out.rate = r;
+    }
     p.onSave(out);
   };
 
@@ -217,7 +238,6 @@ function EntryForm(p: {
                 );
               }
               if (f.type === 'currency') {
-                const rate = Number(d.rate) || 1;
                 const isBase = v === p.db.settings.baseCurrency;
                 return (
                   <div key={f.key} className="span-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -225,7 +245,9 @@ function EntryForm(p: {
                       Moeda
                       <select
                         value={String(v)}
-                        onChange={(e) => setD((prev) => ({ ...prev, currency: e.target.value, rate: defaultRate(e.target.value) }))}
+                        onChange={(e) =>
+                          setD((prev) => ({ ...prev, currency: e.target.value, rate: decimalInput(defaultRate(e.target.value)) }))
+                        }
                       >
                         {currencies.map((c) => (
                           <option key={c}>{c}</option>
@@ -235,11 +257,9 @@ function EntryForm(p: {
                     <label className="field">
                       Cotação (1 {String(v)} = ? {p.db.settings.baseCurrency})
                       <input
-                        type="number"
-                        step="any"
-                        min="0"
+                        inputMode="decimal"
                         disabled={isBase}
-                        value={isBase ? 1 : rate}
+                        value={isBase ? '1' : String(d.rate ?? '')}
                         onChange={(e) => set('rate', e.target.value)}
                       />
                     </label>
@@ -272,9 +292,9 @@ function EntryForm(p: {
                   <>
                     <input
                       {...common}
-                      type={f.type}
-                      step={f.type === 'number' ? 'any' : undefined}
-                      min={f.type === 'number' ? 0 : undefined}
+                      type={f.type === 'number' ? 'text' : f.type}
+                      inputMode={f.type === 'number' ? 'decimal' : undefined}
+                      autoComplete="off"
                       list={list}
                       onChange={(e) => set(f.key, e.target.value)}
                     />
@@ -297,6 +317,11 @@ function EntryForm(p: {
               );
             })}
         </div>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
         <div className="modal-foot">
           <button type="button" onClick={p.onCancel}>
             Cancelar

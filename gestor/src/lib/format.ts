@@ -34,3 +34,27 @@ export function monthLabel(ym: string): string {
   const name = new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
   return `${name}/${String(y).slice(2)}`;
 }
+
+/**
+ * Lê um número digitado no padrão brasileiro ou internacional.
+ * "1.234,56" → 1234.56 · "1234,56" → 1234.56 · "5,4" → 5.4 · "5.4" → 5.4 · "1.500" → 1500 · "R$ 10" → 10.
+ * Retorna null se vazio e NaN se inválido.
+ */
+export function parseDecimal(input: unknown): number | null {
+  if (typeof input === 'number') return input;
+  const s = String(input ?? '')
+    .replace(/[R$\s ]/g, '')
+    .replace(/^[A-Z]{3}(?=[-\d])/, ''); // "USD100"
+  if (!s) return null;
+  let norm: string;
+  if (s.includes(',')) norm = s.replace(/\./g, '').replace(',', '.');
+  else if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(s)) norm = s.replace(/\./g, ''); // pontos como milhar: 1.500 / 12.345.678
+  else norm = s;
+  return /^-?\d*\.?\d+$/.test(norm) ? Number(norm) : NaN;
+}
+
+/** Número → texto para campo de formulário, com vírgula decimal e sem separador de milhar. */
+export function decimalInput(v: unknown): string {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return v === undefined || v === null ? '' : String(v);
+  return String(v).replace('.', ',');
+}

@@ -5,8 +5,11 @@ import { adBase, saleGross, saleNet, toBase } from '../lib/metrics';
 import { money, num, shortDate } from '../lib/format';
 import { today } from '../lib/dates';
 
+// Produtos pausados continuam na lista (no fim) para não trocar o produto ao editar lançamentos antigos
 const productOptions = (db: Database) =>
-  db.products.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }));
+  [...db.products]
+    .sort((a, b) => Number(b.active) - Number(a.active))
+    .map((p) => ({ value: p.id, label: p.active ? p.name : `${p.name} (pausado)` }));
 const productName = (db: Database, id?: string) => db.products.find((p) => p.id === id)?.name ?? '—';
 const COUNTRIES = ['BR', 'US', 'MX', 'CO', 'AR', 'CL', 'PE', 'EC', 'ES', 'PT', 'CA', 'GB', 'AU', 'DE', 'FR', 'IT'];
 const countries = (db: Database) => [...new Set([...COUNTRIES, ...db.sales.map((s) => s.country), ...db.ads.map((a) => a.country)])];
@@ -264,6 +267,15 @@ export function ProductsPage() {
       subtitle="Cada oferta que você escala. Receitas, tráfego e despesas são atribuídos a ela."
       collection="products"
       search={(p) => `${p.name} ${p.market}`}
+      blockDelete={(p, db) => {
+        const n =
+          db.sales.filter((x) => x.productId === p.id).length +
+          db.ads.filter((x) => x.productId === p.id).length +
+          db.expenses.filter((x) => x.productId === p.id).length;
+        return n
+          ? `"${p.name}" tem ${n} lançamento(s) vinculado(s). Para manter o histórico correto, edite o produto e desmarque "Ativo" em vez de excluir.`
+          : null;
+      }}
       emptyHint="Cadastre sua primeira oferta para começar."
       fields={[
         { key: 'name', label: 'Nome', type: 'text', required: true, span2: true },

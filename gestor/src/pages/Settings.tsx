@@ -3,6 +3,7 @@ import { emptyDb, getDb, normalize, replaceDb, updateSettings, useDb } from '../
 import { download, fetchRates } from '../lib/io';
 import { today } from '../lib/dates';
 import { Icon } from '../components/Icon';
+import { DecimalInput } from '../components/DecimalInput';
 import { isIOS, promptInstall, usePwa } from '../lib/pwa';
 
 function ListEditor({ label, values, onChange }: { label: string; values: string[]; onChange: (v: string[]) => void }) {
@@ -111,13 +112,7 @@ export function Settings() {
             </label>
             <label className="field">
               Imposto estimado (% sobre receita líquida)
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                value={s.taxRate}
-                onChange={(e) => updateSettings({ taxRate: Number(e.target.value) || 0 })}
-              />
+              <DecimalInput value={s.taxRate} onChange={(taxRate) => updateSettings({ taxRate: Math.min(taxRate, 100) })} />
             </label>
           </div>
           <p className="muted small">
@@ -139,12 +134,9 @@ export function Settings() {
               .map(([c, v]) => (
                 <label key={c} className="field">
                   {c}
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
+                  <DecimalInput
                     value={v}
-                    onChange={(e) => updateSettings({ rates: { ...s.rates, [c]: Number(e.target.value) } })}
+                    onChange={(rate) => rate > 0 && updateSettings({ rates: { ...getDb().settings.rates, [c]: rate } })}
                   />
                 </label>
               ))}
