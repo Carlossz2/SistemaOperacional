@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { PeriodProvider } from './lib/period';
 import { Icon } from './components/Icon';
+import { promptInstall, usePwa } from './lib/pwa';
 import { Dashboard } from './pages/Dashboard';
 import { AdsPage, CapitalPage, ExpensesPage, ProductsPage, SalesPage } from './pages/Entries';
 import { Reports } from './pages/Reports';
@@ -30,6 +31,7 @@ function useTheme(): [Theme, () => void] {
   useEffect(() => {
     const resolved = theme === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : theme;
     document.documentElement.setAttribute('data-theme', resolved);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'light' ? '#f3f4f6' : '#0b0c0e');
     try {
       localStorage.setItem('gestor-dr:theme', theme);
     } catch {
@@ -43,6 +45,7 @@ function useTheme(): [Theme, () => void] {
 function Shell() {
   const [open, setOpen] = useState(false);
   const [theme, toggle] = useTheme();
+  const pwa = usePwa();
   const loc = useLocation();
   useEffect(() => setOpen(false), [loc.pathname]);
   const dark = theme === 'dark' || (theme === 'auto' && !matchMedia('(prefers-color-scheme: light)').matches);
@@ -77,6 +80,12 @@ function Shell() {
             </NavLink>
           ))}
           <div className="sidebar-foot">
+            {pwa.canInstall && (
+              <button className="nav-link install" onClick={promptInstall} data-tip="Instalar app" aria-label="Instalar app">
+                <Icon name="download" />
+                <span className="nav-label">Instalar app</span>
+              </button>
+            )}
             <button className="nav-link" onClick={toggle} data-tip={dark ? 'Tema claro' : 'Tema escuro'} aria-label="Alternar tema">
               <Icon name={dark ? 'sun' : 'moon'} />
               <span className="nav-label">{dark ? 'Tema claro' : 'Tema escuro'}</span>

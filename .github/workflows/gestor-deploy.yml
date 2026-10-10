@@ -1,8 +1,11 @@
 name: Gestor DR — Publicar no GitHub Pages
 
-# Execução manual (aba Actions → "Run workflow").
+# Publica o app (PWA) a cada push na branch principal que mexa em gestor/,
+# ou manualmente pela aba Actions → "Run workflow".
 # Antes, ative em Settings → Pages → Source: "GitHub Actions".
 on:
+  push:
+    paths: ['gestor/**', '.github/workflows/gestor-deploy.yml']
   workflow_dispatch:
 
 permissions:
@@ -16,6 +19,8 @@ concurrency:
 
 jobs:
   deploy:
+    # Só a branch principal publica (regra padrão do ambiente github-pages)
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     environment:
       name: github-pages

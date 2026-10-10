@@ -46,11 +46,26 @@ npm test           # testes do motor de cálculo
 npm run build      # gera gestor/dist (site estático)
 ```
 
+## App instalável (PWA)
+
+O Gestor DR é um PWA: pode ser instalado no computador (Chrome/Edge) e no celular (Android e iPhone), com ícone
+próprio, janela própria e funcionamento **offline**.
+
+- **Computador / Android**: abra o endereço publicado e clique em *Instalar* (ícone na barra de endereço, botão
+  “Instalar app” no menu lateral ou em *Configurações*).
+- **iPhone / iPad**: abra no Safari → *Compartilhar* → *Adicionar à Tela de Início*.
+
+Arquivos: `public/manifest.webmanifest`, `public/sw.js` (cache offline; atualiza sozinho quando há versão nova),
+`public/icons/` e `src/lib/pwa.ts` (registro e botão de instalação). A instalação exige HTTPS — GitHub Pages,
+Vercel ou Netlify servem.
+
 ## Publicar (integração GitHub)
 
 - **CI**: todo push/PR que mexe em `gestor/` roda typecheck, testes e build (`.github/workflows/gestor-ci.yml`).
-- **GitHub Pages**: em *Settings → Pages* escolha *Source: GitHub Actions* e rode o workflow
-  *“Gestor DR — Publicar no GitHub Pages”* na aba *Actions*. (Pages em repositório privado exige plano pago do GitHub.)
+- **GitHub Pages**: em *Settings → Pages* escolha *Source: GitHub Actions*. Depois disso, todo push na branch
+  principal que altere `gestor/` publica o app automaticamente (ou rode o workflow
+  *“Gestor DR — Publicar no GitHub Pages”* na aba *Actions*). Endereço: `https://<usuario>.github.io/<repositorio>/`.
+  (Pages em repositório privado exige plano pago do GitHub.)
 - **Vercel/Netlify** (alternativa grátis com repositório privado): importe o repositório, *Root directory* = `gestor`,
   build `npm run build`, saída `dist`.
 

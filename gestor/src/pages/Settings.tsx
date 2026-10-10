@@ -4,6 +4,7 @@ import { download, fetchRates } from '../lib/io';
 import { demoDb } from '../lib/demo';
 import { today } from '../lib/dates';
 import { Icon } from '../components/Icon';
+import { isIOS, promptInstall, usePwa } from '../lib/pwa';
 
 function ListEditor({ label, values, onChange }: { label: string; values: string[]; onChange: (v: string[]) => void }) {
   const [text, setText] = useState(values.join('\n'));
@@ -27,6 +28,7 @@ export function Settings() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [newCur, setNewCur] = useState('');
   const [status, setStatus] = useState('');
+  const pwa = usePwa();
 
   const counts = `${db.products.length} produtos · ${db.sales.length} receitas · ${db.ads.length} tráfego · ${db.expenses.length} despesas · ${db.capital.length} capital`;
 
@@ -62,6 +64,39 @@ export function Settings() {
         </div>
       </div>
       {status && <div className="card mb small">{status}</div>}
+
+      <div className="card mb">
+        <div className="card-head">
+          <div className="card-title">
+            <span className="icon-box">
+              <Icon name="download" size={17} />
+            </span>
+            <h2>Instalar como aplicativo</h2>
+          </div>
+          {pwa.canInstall && (
+            <button className="primary" onClick={promptInstall}>
+              <Icon name="download" size={15} /> Instalar Gestor DR
+            </button>
+          )}
+        </div>
+        {pwa.installed ? (
+          <p className="muted small" style={{ margin: 0 }}>Você já está usando o app instalado. Ele abre em janela própria e funciona offline.</p>
+        ) : pwa.canInstall ? (
+          <p className="muted small" style={{ margin: 0 }}>
+            Instala no computador ou celular com ícone próprio, abre em janela própria e funciona offline.
+          </p>
+        ) : isIOS() ? (
+          <p className="muted small" style={{ margin: 0 }}>
+            No iPhone/iPad: abra este endereço no <b>Safari</b>, toque em <b>Compartilhar</b> (quadrado com seta) e depois em{' '}
+            <b>Adicionar à Tela de Início</b>.
+          </p>
+        ) : (
+          <p className="muted small" style={{ margin: 0 }}>
+            No Chrome ou Edge (computador e Android): clique no ícone de instalar na barra de endereço ou no menu ⋮ → <b>Instalar
+            Gestor DR</b>. Se a opção não aparecer, abra o sistema pelo endereço publicado (GitHub Pages), não pela pré-visualização.
+          </p>
+        )}
+      </div>
 
       <div className="grid cols-2 mb">
         <div className="card">
