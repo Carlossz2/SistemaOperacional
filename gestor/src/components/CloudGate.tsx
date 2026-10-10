@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { getCloudConfig, getMode, saveCloudConfig, setMode, validateConfig, envConfig } from '../lib/cloud/config';
+import { getCloudConfig, getMode, normalizeUrl, saveCloudConfig, setMode, validateConfig, envConfig } from '../lib/cloud/config';
 import { currentUserId, startCloud, stopCloud, supabase } from '../lib/cloud/sync';
 import { startLocal } from '../lib/store';
 import { Icon } from './Icon';
@@ -256,7 +256,7 @@ export function Setup({ onDone }: { onDone: (m: 'cloud' | 'local') => void }) {
     setBusy(true);
     setError('');
     try {
-      const res = await fetch(`${url.trim().replace(/\/$/, '')}/auth/v1/settings`, { headers: { apikey: key.trim() } });
+      const res = await fetch(`${normalizeUrl(url)}/auth/v1/settings`, { headers: { apikey: key.trim() } });
       if (res.status === 401 || res.status === 403) throw new Error('Chave recusada pelo Supabase. Confira a chave pública (anon).');
       if (!res.ok && res.status !== 404) throw new Error(`O Supabase respondeu ${res.status}. Confira a URL.`);
       saveCloudConfig(cfg);

@@ -26,3 +26,13 @@ describe('parseDecimal', () => {
     for (const v of [0.0013, 0.035, 5.4, 1234.56, 1500, 0]) expect(parseDecimal(decimalInput(v))).toBe(v);
   });
 });
+
+import { normalizeUrl } from './cloud/config';
+describe('normalizeUrl', () => {
+  it.each([
+    ['https://aaxmvsqpanlksfhdfcqv.supabase.co/rest/v1/', 'https://aaxmvsqpanlksfhdfcqv.supabase.co'],
+    ['https://aaxmvsqpanlksfhdfcqv.supabase.co/', 'https://aaxmvsqpanlksfhdfcqv.supabase.co'],
+    ['aaxmvsqpanlksfhdfcqv.supabase.co', 'https://aaxmvsqpanlksfhdfcqv.supabase.co'],
+    ['  https://x.supabase.co/auth/v1  ', 'https://x.supabase.co'],
+  ])('%s', (input, out) => expect(normalizeUrl(input)).toBe(out));
+});

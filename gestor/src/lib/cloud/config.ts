@@ -23,15 +23,26 @@ function read<T>(key: string): T | null {
 export function envConfig(): CloudConfig | null {
   const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-  return url && anonKey ? { url, anonKey } : null;
+  return url && anonKey ? { url: normalizeUrl(url), anonKey: anonKey.trim() } : null;
 }
 
 export function getCloudConfig(): CloudConfig | null {
-  return read<CloudConfig>(CONFIG_KEY) ?? envConfig();
+  const saved = read<CloudConfig>(CONFIG_KEY);
+  return saved ? { ...saved, url: normalizeUrl(saved.url) } : envConfig();
+}
+
+/** Aceita a URL copiada de qualquer lugar do painel: fica só "https://<id>.supabase.co". */
+export function normalizeUrl(raw: string): string {
+  const s = raw.trim();
+  try {
+    return new URL(/^https?:\/\//.test(s) ? s : `https://${s}`).origin;
+  } catch {
+    return s.replace(/\/+$/, '');
+  }
 }
 
 export function saveCloudConfig(cfg: CloudConfig) {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify({ url: cfg.url.trim().replace(/\/$/, ''), anonKey: cfg.anonKey.trim() }));
+  localStorage.setItem(CONFIG_KEY, JSON.stringify({ url: normalizeUrl(cfg.url), anonKey: cfg.anonKey.trim() }));
   localStorage.setItem(MODE_KEY, JSON.stringify('cloud'));
 }
 
@@ -53,7 +64,7 @@ export function forgetCloud() {
 
 /** Valida o formato antes de tentar conectar. */
 export function validateConfig(cfg: CloudConfig): string | null {
-  if (!/^https?:\/\/[^\s/]+/.test(cfg.url.trim())) return 'Informe a URL do projeto (ex.: https://abcd.supabase.co)';
+  if (!/^https?:\/\/[^\s/]+$/.test(normalizeUrl(cfg.url))) return 'Informe a URL do projeto (ex.: https://abcd.supabase.co)';
   if (cfg.anonKey.trim().length < 20) return 'Informe a chave pública (anon / publishable key)';
   if (/service_role|sb_secret_/.test(cfg.anonKey)) return 'Essa é a chave SECRETA. Use a chave pública (anon / publishable).';
   try {
