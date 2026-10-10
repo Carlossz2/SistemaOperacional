@@ -15,7 +15,7 @@ convertido para a moeda base (BRL) com a cotação do dia de cada lançamento.
 | **Caixa & capital** | Aportes, retiradas/pró-labore e investimentos em ativos — não são custo, mas mexem no caixa. |
 | **Produtos** | Ofertas (front, upsell, order bump…) com **CPA máximo** — o sistema destaca quando estoura. |
 | **Relatórios** | **DRE gerencial mês a mês** e quebras por produto, país, plataforma e fonte. Exporta CSV (abre no Excel). |
-| **Configurações** | Moeda base, cotações (com atualização online), alíquota de imposto, listas, **backup/restauração** e dados de demonstração. |
+| **Configurações** | Moeda base, cotações (com atualização online), alíquota de imposto, listas e **backup/restauração**. |
 
 Todas as listas exportam CSV; lançamentos podem ser duplicados para hoje com um clique (agiliza o lançamento diário).
 

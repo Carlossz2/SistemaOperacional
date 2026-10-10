@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useDb, replaceDb } from '../lib/store';
+import { useDb } from '../lib/store';
 import { FilterBar, FilterNote, usePeriod } from '../lib/period';
 import { previousPeriod, type PresetKey } from '../lib/dates';
 import { breakdown, capitalSummary, computeTotals, expensesByCategory, timeSeries, type Filter, type Totals } from '../lib/metrics';
@@ -11,7 +11,6 @@ import { DonutChart, FlowChart, ProfitChart } from '../components/Charts';
 import { BreakdownTable } from '../components/BreakdownTable';
 import { Transactions } from '../components/Transactions';
 import { Icon } from '../components/Icon';
-import { demoDb } from '../lib/demo';
 
 const RANGES: { key: PresetKey; label: string }[] = [
   { key: '7d', label: '7D' },
@@ -107,11 +106,12 @@ export function Dashboard() {
           <h2>Bem-vindo ao seu Gestor DR</h2>
           <p>
             Cadastre suas <Link to="/produtos">ofertas</Link>, depois lance <Link to="/receitas">receitas</Link>,{' '}
-            <Link to="/trafego">tráfego</Link> e <Link to="/despesas">despesas</Link>. Ou explore com dados fictícios.
+            <Link to="/trafego">tráfego</Link> e <Link to="/despesas">despesas</Link>. Já tem um backup? Restaure em{' '}
+            <Link to="/configuracoes">Configurações</Link>.
           </p>
-          <button className="primary" onClick={() => replaceDb(demoDb())}>
-            Carregar dados de demonstração
-          </button>
+          <Link to="/produtos" className="btn primary">
+            <Icon name="plus" size={15} /> Cadastrar primeira oferta
+          </Link>
         </div>
       )}
 

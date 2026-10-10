@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { emptyDb, getDb, normalize, replaceDb, updateSettings, useDb } from '../lib/store';
 import { download, fetchRates } from '../lib/io';
-import { demoDb } from '../lib/demo';
 import { today } from '../lib/dates';
 import { Icon } from '../components/Icon';
 import { isIOS, promptInstall, usePwa } from '../lib/pwa';
@@ -192,9 +191,6 @@ export function Settings() {
             <Icon name="upload" size={16} /> Restaurar backup
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => e.target.files?.[0] && importFile(e.target.files[0])} />
-          <button onClick={() => confirm('Substituir os dados atuais por dados de demonstração?') && replaceDb(demoDb())}>
-            Carregar demonstração
-          </button>
           <button
             className="danger"
             onClick={() => confirm('Apagar TODOS os dados deste navegador? Exporte um backup antes.') && replaceDb(emptyDb())}
