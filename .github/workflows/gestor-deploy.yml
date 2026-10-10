@@ -40,14 +40,18 @@ jobs:
       - name: Build (já conectado ao seu Supabase)
         run: npm run build
         env:
-          # aceita tanto em Variables quanto em Secrets (são valores públicos)
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+          # Valores PÚBLICOS (o navegador de qualquer visitante os recebe): URL do projeto e chave
+          # publishable. Podem ser trocados pelas variáveis VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY.
+          # A segurança dos dados vem do login + regras do banco (RLS), não do sigilo destes valores.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL || 'https://aaxmvsqpanlksfhdfcqv.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_yzbx9hVKOaZ95Ecmbzp1cQ_VY-HqV1f' }}
       - name: Conexão com o Supabase embutida?
         run: |
-          if [ -z "$(grep -l 'supabase.co' dist/assets/*.js 2>/dev/null)" ]; then
-            echo "::warning::VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY não encontrados: o app vai pedir a conexão na primeira abertura. Cadastre-os em Settings → Secrets and variables → Actions."
+          if ! grep -q 'Supabase não configurado' dist/assets/*.js || ! grep -qE 'https://[a-z0-9]{20}\.supabase\.co' dist/assets/*.js; then
+            echo "::error::A URL do Supabase não foi embutida no app."
+            exit 1
           fi
+          echo "Conexão embutida: $(grep -oE 'https://[a-z0-9]{20}\.supabase\.co' dist/assets/*.js | head -1)"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
