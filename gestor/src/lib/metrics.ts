@@ -142,10 +142,14 @@ export interface SeriesPoint {
   cumulative: number;
 }
 
-/** Série temporal: diária até ~3 meses, mensal acima disso. */
-export function timeSeries(db: Database, f: Filter): { granularity: 'day' | 'month'; points: SeriesPoint[] } {
+/** Série temporal: diária até `maxDailyDays` (padrão ~3 meses), mensal acima disso. */
+export function timeSeries(
+  db: Database,
+  f: Filter,
+  maxDailyDays = 92,
+): { granularity: 'day' | 'month'; points: SeriesPoint[] } {
   const days = daysBetween(f.from, f.to);
-  const granularity = days.length > 92 ? 'month' : 'day';
+  const granularity = days.length > maxDailyDays ? 'month' : 'day';
   const keys = granularity === 'day' ? days : monthsBetween(f.from, f.to);
   const bucket = (date: string) => (granularity === 'day' ? date : monthOf(date));
   const map = new Map(keys.map((k) => [k, { net: 0, ads: 0, expenses: 0 }]));

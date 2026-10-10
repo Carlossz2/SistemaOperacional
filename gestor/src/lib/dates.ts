@@ -44,7 +44,7 @@ export interface Period {
   to: string;
 }
 
-export type PresetKey = 'today' | 'yesterday' | '7d' | '30d' | 'mtd' | 'lastMonth' | '90d' | 'ytd' | 'all' | 'custom';
+export type PresetKey = 'today' | 'yesterday' | '7d' | '30d' | 'mtd' | 'lastMonth' | '90d' | '365d' | 'ytd' | 'all' | 'custom';
 
 export const PRESETS: { key: PresetKey; label: string }[] = [
   { key: 'today', label: 'Hoje' },
@@ -54,6 +54,7 @@ export const PRESETS: { key: PresetKey; label: string }[] = [
   { key: 'mtd', label: 'Este mês' },
   { key: 'lastMonth', label: 'Mês passado' },
   { key: '90d', label: 'Últimos 90 dias' },
+  { key: '365d', label: 'Últimos 12 meses' },
   { key: 'ytd', label: 'Este ano' },
   { key: 'all', label: 'Todo o período' },
   { key: 'custom', label: 'Personalizado' },
@@ -74,6 +75,8 @@ export function resolvePreset(key: PresetKey, ref = today(), earliest = ref): Pe
       return { preset: key, from: addDays(ref, -29), to: ref };
     case '90d':
       return { preset: key, from: addDays(ref, -89), to: ref };
+    case '365d':
+      return { preset: key, from: addDays(ref, -364), to: ref };
     case 'mtd':
       return { preset: key, from: `${month}-01`, to: ref };
     case 'lastMonth': {

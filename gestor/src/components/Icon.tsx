@@ -17,12 +17,21 @@ const PATHS: Record<string, string> = {
   upload: 'M12 21V9m0 0l-5 5m5-5l5 5M4 3h16',
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
   sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5',
+  flow: 'M3 3h18v18H3zM7 15l3-4 3 3 4-6',
+  pie: 'M21 12A9 9 0 1 1 12 3M21 12A9 9 0 0 0 12 3v9h9z',
+  wallet: 'M3 7h18v13H3zM3 7l2-4h12l2 4M16 13.5h2',
+  cash: 'M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 9v.01M18 15v.01',
+  trend: 'M3 17l6-6 4 4 8-8M15 7h6v6',
+  coins: 'M9 14a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM15 10.2A6 6 0 1 1 9.8 16',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  logo: 'M5 5h6v6H5zM13 13h6v6h-6zM13 5h6v6h-6z',
   refresh: 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
 };
 
 export function Icon({ name, size = 18 }: { name: keyof typeof PATHS | string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d={PATHS[name]} />
     </svg>
   );

@@ -22,21 +22,21 @@ type Theme = 'light' | 'dark' | 'auto';
 function useTheme(): [Theme, () => void] {
   const [theme, setTheme] = useState<Theme>(() => {
     try {
-      return (localStorage.getItem('gestor-dr:theme') as Theme) || 'auto';
+      return (localStorage.getItem('gestor-dr:theme') as Theme) || 'dark';
     } catch {
-      return 'auto';
+      return 'dark';
     }
   });
   useEffect(() => {
-    if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.setAttribute('data-theme', theme);
+    const resolved = theme === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : theme;
+    document.documentElement.setAttribute('data-theme', resolved);
     try {
       localStorage.setItem('gestor-dr:theme', theme);
     } catch {
       /* ignora */
     }
   }, [theme]);
-  const isDark = theme === 'dark' || (theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const isDark = theme === 'dark' || (theme === 'auto' && !matchMedia('(prefers-color-scheme: light)').matches);
   return [theme, () => setTheme(isDark ? 'light' : 'dark')];
 }
 
@@ -45,7 +45,7 @@ function Shell() {
   const [theme, toggle] = useTheme();
   const loc = useLocation();
   useEffect(() => setOpen(false), [loc.pathname]);
-  const dark = theme === 'dark' || (theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const dark = theme === 'dark' || (theme === 'auto' && !matchMedia('(prefers-color-scheme: light)').matches);
 
   return (
     <>
@@ -59,20 +59,37 @@ function Shell() {
         <aside className={`sidebar ${open ? 'open' : ''}`}>
           <div className="brand">
             <span className="brand-logo">
-              <Icon name="reports" size={16} />
+              <Icon name="logo" size={16} />
             </span>
-            Gestor DR
+            <span className="brand-name">Gestor DR</span>
           </div>
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          {NAV.filter((n) => n.to !== '/configuracoes').map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.to === '/'}
+              data-tip={n.label}
+              aria-label={n.label}
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            >
               <Icon name={n.icon} />
-              {n.label}
+              <span className="nav-label">{n.label}</span>
             </NavLink>
           ))}
           <div className="sidebar-foot">
-            <button className="ghost" onClick={toggle}>
-              <Icon name={dark ? 'sun' : 'moon'} size={16} /> {dark ? 'Tema claro' : 'Tema escuro'}
+            <button className="nav-link" onClick={toggle} data-tip={dark ? 'Tema claro' : 'Tema escuro'} aria-label="Alternar tema">
+              <Icon name={dark ? 'sun' : 'moon'} />
+              <span className="nav-label">{dark ? 'Tema claro' : 'Tema escuro'}</span>
             </button>
+            <NavLink
+              to="/configuracoes"
+              data-tip="Configurações"
+              aria-label="Configurações"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            >
+              <Icon name="settings" />
+              <span className="nav-label">Configurações</span>
+            </NavLink>
           </div>
         </aside>
         <main className="main">

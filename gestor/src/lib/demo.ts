@@ -2,7 +2,7 @@ import type { Database } from './types';
 import { addDays, today } from './dates';
 import { DEFAULT_SETTINGS, uid } from './store';
 
-/** Gera ~90 dias de uma operação fictícia (BR + LATAM + US) para explorar o sistema. */
+/** Gera 12 meses de uma operação fictícia (BR + LATAM + US) para explorar o sistema. */
 export function demoDb(ref = today()): Database {
   let seed = 42;
   const rand = () => {
@@ -25,9 +25,10 @@ export function demoDb(ref = today()): Database {
     { p: us, platform: 'ClickBank', currency: 'USD', ticket: 69, countries: ['US', 'CA'], source: 'Google Ads', spend: 380 },
   ];
 
-  for (let i = 89; i >= 0; i--) {
+  for (let i = 364; i >= 0; i--) {
     const date = addDays(ref, -i);
-    const growth = 0.6 + (90 - i) / 150;
+    // escala ao longo do ano + sazonalidade + semanas boas/ruins
+    const growth = (0.45 + (365 - i) / 420) * (1 + 0.25 * Math.sin(i / 29)) * (0.85 + 0.3 * Math.sin(i / 6.3));
     for (const o of offers) {
       const country = o.countries[Math.floor(rand() * o.countries.length)];
       const rate = settings.rates[o.currency] ?? 1;
@@ -54,7 +55,7 @@ export function demoDb(ref = today()): Database {
     }
   }
 
-  const start = addDays(ref, -89);
+  const start = addDays(ref, -364);
   const monthly = (category: string, description: string, amount: number, currency = 'BRL') =>
     db.expenses.push({
       id: uid(),
@@ -85,8 +86,16 @@ export function demoDb(ref = today()): Database {
 
   db.capital.push(
     { id: uid(), date: start, kind: 'aporte', description: 'Capital inicial', amount: 30000, currency: 'BRL', rate: 1 },
-    { id: uid(), date: addDays(ref, -60), kind: 'investimento', description: 'Notebook para edição', amount: 9000, currency: 'BRL', rate: 1 },
-    { id: uid(), date: addDays(ref, -30), kind: 'retirada', description: 'Pró-labore', amount: 8000, currency: 'BRL', rate: 1 },
+    { id: uid(), date: addDays(ref, -200), kind: 'investimento', description: 'Notebook para edição', amount: 9000, currency: 'BRL', rate: 1 },
+    ...[300, 240, 180, 120, 60, 20].map((d) => ({
+      id: uid(),
+      date: addDays(ref, -d),
+      kind: 'retirada' as const,
+      description: 'Distribuição de lucros',
+      amount: 15000,
+      currency: 'BRL',
+      rate: 1,
+    })),
   );
   return db;
 }

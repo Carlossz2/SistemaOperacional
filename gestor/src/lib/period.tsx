@@ -73,7 +73,7 @@ export function usePeriod() {
   return ctx;
 }
 
-export function FilterBar({ showDimensions = true }: { showDimensions?: boolean }) {
+export function FilterBar({ showDimensions = true, inline = false }: { showDimensions?: boolean; inline?: boolean }) {
   const db = useDb();
   const f = usePeriod();
   const countries = useMemo(
@@ -81,7 +81,7 @@ export function FilterBar({ showDimensions = true }: { showDimensions?: boolean 
     [db.sales, db.ads],
   );
   return (
-    <div className="toolbar">
+    <div className="toolbar" style={inline ? { margin: 0 } : undefined}>
       <select aria-label="Período" value={f.period.preset} onChange={(e) => f.setPreset(e.target.value as PresetKey)}>
         {PRESETS.map((p) => (
           <option key={p.key} value={p.key}>
@@ -116,7 +116,7 @@ export function FilterBar({ showDimensions = true }: { showDimensions?: boolean 
           </select>
         </>
       )}
-      {(f.country || f.productId) && (
+      {!inline && (f.country || f.productId) && (
         <span className="muted small">
           {f.country
             ? 'Filtro por país: despesas fixas não entram — lucro = margem de contribuição.'
@@ -124,5 +124,18 @@ export function FilterBar({ showDimensions = true }: { showDimensions?: boolean 
         </span>
       )}
     </div>
+  );
+}
+
+/** Aviso sobre como os filtros de produto/país afetam o lucro. */
+export function FilterNote() {
+  const f = usePeriod();
+  if (!f.country && !f.productId) return null;
+  return (
+    <p className="muted small" style={{ margin: '-6px 0 14px' }}>
+      {f.country
+        ? 'Filtro por país: despesas fixas não entram — lucro = margem de contribuição.'
+        : 'Filtro por produto: entram só as despesas atribuídas ao produto.'}
+    </p>
   );
 }
