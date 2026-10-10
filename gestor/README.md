@@ -94,7 +94,7 @@ Vercel ou Netlify servem.
 
 ```bash
 cd gestor && npm test                                   # cálculos e formatos
-deno test supabase/functions/_shared                    # adaptadores das plataformas
+deno test -A supabase/functions/_shared                 # adaptadores das plataformas
 supabase/tests/run.sh                                   # banco: segurança, consolidação, 2FA
 supabase/tests/stack/start.sh && deno test -A supabase/tests/stack/backend.e2e.test.ts   # ponta a ponta
 ```

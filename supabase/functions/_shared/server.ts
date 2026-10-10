@@ -23,8 +23,30 @@ export function env(name: string): string {
   return v;
 }
 
+/**
+ * Chave do Supabase pelo nome antigo (SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY) ou pelo formato
+ * novo (sb_secret_… / sb_publishable_…), que pode vir como JSON em SUPABASE_SECRET_KEYS / SUPABASE_PUBLISHABLE_KEYS.
+ */
+export function supabaseKey(kind: 'secret' | 'publishable'): string {
+  const legacy = Deno.env.get(kind === 'secret' ? 'SUPABASE_SERVICE_ROLE_KEY' : 'SUPABASE_ANON_KEY');
+  if (legacy) return legacy;
+  const single = Deno.env.get(kind === 'secret' ? 'SUPABASE_SECRET_KEY' : 'SUPABASE_PUBLISHABLE_KEY');
+  if (single) return single;
+  const many = Deno.env.get(kind === 'secret' ? 'SUPABASE_SECRET_KEYS' : 'SUPABASE_PUBLISHABLE_KEYS');
+  if (many) {
+    try {
+      const parsed = JSON.parse(many);
+      const value = typeof parsed === 'string' ? parsed : (parsed.default ?? Object.values(parsed)[0]);
+      if (typeof value === 'string' && value) return value;
+    } catch {
+      return many;
+    }
+  }
+  throw new Error(`Chave ${kind === 'secret' ? 'secreta' : 'pública'} do Supabase não encontrada nas variáveis da função`);
+}
+
 export function admin(): Admin {
-  return createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
+  return createClient(env('SUPABASE_URL'), supabaseKey('secret'), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -38,7 +60,7 @@ export async function userFromRequest(sb: Admin, req: Request): Promise<string |
   if (!jwt) return null;
   const { data, error } = await sb.auth.getUser(jwt);
   if (error || !data.user) return null;
-  const asUser = createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), {
+  const asUser = createClient(env('SUPABASE_URL'), supabaseKey('publishable'), {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });

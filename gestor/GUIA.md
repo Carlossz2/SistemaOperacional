@@ -15,7 +15,7 @@ Siga na ordem. Tempo estimado: 30–40 minutos. Nenhum passo exige instalar nada
 3. Quando o projeto terminar de criar, anote:
    - **Project ref:** o código na URL do painel (`supabase.com/dashboard/project/<REF>`).
    - **Project URL:** *Project Settings → API* → `https://<REF>.supabase.co`.
-   - **Chave pública:** *Project Settings → API Keys* → aba *Legacy API keys* → `anon` `public`.
+   - **Chave pública:** *Project Settings → API Keys* → a **Publishable key** (`sb_publishable_…`). A chave `anon` da aba *Legacy API keys* também funciona.
 4. Crie um **token de acesso pessoal** em *Account → Access Tokens* (supabase.com/dashboard/account/tokens). Ele permite que o GitHub publique o banco e as funções.
 
 ## 2. Configurar o GitHub (uma vez)

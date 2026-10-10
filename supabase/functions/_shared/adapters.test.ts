@@ -215,3 +215,20 @@ Deno.test('Processamento: data da venda no fuso de Brasília', async () => {
 Deno.test('Todos os adaptadores registrados', () => {
   assertEquals(Object.keys(ADAPTERS).sort(), ['cakto', 'generic', 'ggcheckout', 'hotmart', 'lastlink', 'perfectpay']);
 });
+
+Deno.test('Chaves do Supabase: formato antigo e novo', async () => {
+  const { supabaseKey } = await import('./server.ts');
+  const names = ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY', 'SUPABASE_SECRET_KEY', 'SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_SECRET_KEYS', 'SUPABASE_PUBLISHABLE_KEYS'];
+  const saved = Object.fromEntries(names.map((n) => [n, Deno.env.get(n)]));
+  names.forEach((n) => Deno.env.delete(n));
+  try {
+    Deno.env.set('SUPABASE_SECRET_KEYS', JSON.stringify({ default: 'sb_secret_abc' }));
+    Deno.env.set('SUPABASE_PUBLISHABLE_KEYS', JSON.stringify({ default: 'sb_publishable_xyz' }));
+    assertEquals(supabaseKey('secret'), 'sb_secret_abc');
+    assertEquals(supabaseKey('publishable'), 'sb_publishable_xyz');
+    Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'legacy-service');
+    assertEquals(supabaseKey('secret'), 'legacy-service');
+  } finally {
+    names.forEach((n) => (saved[n] === undefined ? Deno.env.delete(n) : Deno.env.set(n, saved[n]!)));
+  }
+});
