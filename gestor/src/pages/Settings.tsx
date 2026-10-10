@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
-import { emptyDb, getDb, normalize, replaceDb, updateSettings, useDb } from '../lib/store';
+import { emptyDb, getDb, isCloudActive, normalize, replaceDb, updateSettings, useDb } from '../lib/store';
+import { CloudCard, SecurityCard } from '../components/AccountCards';
+import { exportFull, importToCloud } from '../lib/cloud/sync';
 import { download, fetchRates } from '../lib/io';
 import { today } from '../lib/dates';
 import { Icon } from '../components/Icon';
@@ -32,15 +34,38 @@ export function Settings() {
 
   const counts = `${db.products.length} produtos · ${db.sales.length} receitas · ${db.ads.length} tráfego · ${db.expenses.length} despesas · ${db.capital.length} capital`;
 
+  const cloud = isCloudActive();
   const importFile = async (file: File) => {
+    let data;
     try {
-      const data = normalize(JSON.parse(await file.text()));
-      if (confirm(`Substituir TODOS os dados atuais pelo backup?\n\nBackup: ${data.sales.length} receitas, ${data.ads.length} lançamentos de tráfego.`)) {
-        replaceDb(data);
-        setStatus('Backup restaurado.');
-      }
+      data = normalize(JSON.parse(await file.text()));
     } catch {
-      alert('Arquivo inválido. Use um backup .json exportado por este sistema.');
+      return alert('Arquivo inválido. Use um backup .json exportado por este sistema.');
+    }
+    if (cloud) {
+      if (!confirm(`Importar o backup para a nuvem?\n\nRegistros com o mesmo ID são atualizados; os demais são mantidos. Vendas automáticas não são alteradas.`)) return;
+      try {
+        const n = await importToCloud(data, setStatus);
+        setStatus(`Backup importado: ${n} registro(s).`);
+      } catch (err) {
+        setStatus(`Erro ao importar: ${(err as Error).message}`);
+      }
+      return;
+    }
+    if (confirm(`Substituir TODOS os dados atuais pelo backup?\n\nBackup: ${data.sales.length} receitas, ${data.ads.length} lançamentos de tráfego.`)) {
+      replaceDb(data);
+      setStatus('Backup restaurado.');
+    }
+  };
+  const exportBackup = async () => {
+    if (!cloud) return download(`gestor-dr-backup-${today()}.json`, JSON.stringify(getDb(), null, 2));
+    setStatus('Gerando backup completo (inclui vendas recebidas por webhook)…');
+    try {
+      const full = await exportFull();
+      download(`gestor-dr-backup-${today()}.json`, JSON.stringify(full, null, 2));
+      setStatus('Backup completo exportado.');
+    } catch (err) {
+      setStatus(`Erro ao exportar: ${(err as Error).message}`);
     }
   };
 
@@ -64,6 +89,8 @@ export function Settings() {
         </div>
       </div>
       {status && <div className="card mb small">{status}</div>}
+      {cloud && <SecurityCard />}
+      <CloudCard />
 
       <div className="card mb">
         <div className="card-head">
@@ -105,6 +132,14 @@ export function Settings() {
             <label className="field span-2">
               Nome da operação
               <input value={s.businessName} onChange={(e) => updateSettings({ businessName: e.target.value })} />
+            </label>
+            <label className="field span-2">
+              Fuso horário das vendas (define o dia de cada venda recebida)
+              <select value={s.timezone} onChange={(e) => updateSettings({ timezone: e.target.value })}>
+                {['America/Sao_Paulo', 'America/Manaus', 'America/Mexico_City', 'America/Bogota', 'America/Lima', 'America/Santiago', 'America/Argentina/Buenos_Aires', 'America/New_York', 'Europe/Lisbon', 'Europe/Madrid', 'UTC'].map((tz) => (
+                  <option key={tz}>{tz}</option>
+                ))}
+              </select>
             </label>
             <label className="field">
               Moeda base dos relatórios
@@ -172,25 +207,29 @@ export function Settings() {
       <div className="card">
         <h2>Backup & dados</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Os dados ficam salvos neste navegador ({counts}). Exporte um backup regularmente e guarde em local seguro —
-          ele também serve para levar os dados para outro computador.
+          {cloud
+            ? `Os dados ficam no seu banco Supabase (${counts}). Exporte um backup completo de tempos em tempos e guarde em local seguro.`
+            : `Os dados ficam salvos neste navegador (${counts}). Exporte um backup regularmente e guarde em local seguro — ele também serve para levar os dados para outro computador.`}
         </p>
         <div className="toolbar" style={{ marginBottom: 0 }}>
-          <button className="primary" onClick={() => download(`gestor-dr-backup-${today()}.json`, JSON.stringify(getDb(), null, 2))}>
+          <button className="primary" onClick={() => void exportBackup()}>
             <Icon name="download" size={16} /> Exportar backup
           </button>
           <button onClick={() => fileRef.current?.click()}>
             <Icon name="upload" size={16} /> Restaurar backup
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => e.target.files?.[0] && importFile(e.target.files[0])} />
-          <button
-            className="danger"
-            onClick={() => confirm('Apagar TODOS os dados deste navegador? Exporte um backup antes.') && replaceDb(emptyDb())}
-          >
-            <Icon name="trash" size={16} /> Apagar tudo
-          </button>
+          {!cloud && (
+            <button
+              className="danger"
+              onClick={() => confirm('Apagar TODOS os dados deste navegador? Exporte um backup antes.') && replaceDb(emptyDb())}
+            >
+              <Icon name="trash" size={16} /> Apagar tudo
+            </button>
+          )}
         </div>
       </div>
+      <p className="muted small" style={{ marginTop: 16 }}>Versão do app: {__APP_VERSION__}</p>
     </>
   );
 }

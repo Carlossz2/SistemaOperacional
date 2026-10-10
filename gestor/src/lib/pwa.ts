@@ -37,12 +37,44 @@ export function setupPwa() {
   });
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {
-        /* ambiente sem suporte (ex.: pré-visualização embutida) — o app funciona normalmente */
+      navigator.serviceWorker
+        .register('./sw.js', { updateViaCache: 'none' })
+        .then((reg) => {
+          // procura versão nova periodicamente e ao voltar para o app
+          const check = () => reg.update().catch(() => undefined);
+          setInterval(check, 30 * 60_000);
+          document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && check());
+        })
+        .catch(() => {
+          /* ambiente sem suporte (ex.: pré-visualização embutida) — o app funciona normalmente */
+        });
+      // quando a versão nova assume, recarrega (sem interromper um formulário aberto)
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || reloading) return;
+        reloading = true;
+        updating = true;
+        emit();
+        const tryReload = () => {
+          if (document.querySelector('.modal')) return setTimeout(tryReload, 3000);
+          location.reload();
+        };
+        setTimeout(tryReload, 1200);
       });
     });
   }
 }
+
+let updating = false;
+export const useUpdating = () =>
+  useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => updating,
+  );
 
 export async function promptInstall(): Promise<boolean> {
   if (!deferred) return false;

@@ -15,9 +15,12 @@ end $$;
 grant usage on schema test to authenticated, service_role, anon;
 grant execute on all functions in schema test to authenticated, service_role, anon;
 
-insert into auth.users (id, email) values
-  ('11111111-1111-1111-1111-111111111111', 'dono@teste.com'),
-  ('22222222-2222-2222-2222-222222222222', 'outro@teste.com');
+-- o primeiro usuário vira administrador; o segundo é criado "por fora" (gatilho desligado)
+-- só para provar que, mesmo existindo, ele não enxerga nada
+insert into auth.users (id, email) values ('11111111-1111-1111-1111-111111111111', 'dono@teste.com');
+alter table auth.users disable trigger gestor_block_extra_signups;
+insert into auth.users (id, email) values ('22222222-2222-2222-2222-222222222222', 'outro@teste.com');
+alter table auth.users enable trigger gestor_block_extra_signups;
 
 -- ---------------------------------------------------------------- dono cria dados manuais
 begin;
@@ -43,7 +46,7 @@ begin
   begin
     insert into public.sales (date, product_id, gross) values ('2026-10-01', 'p1', 1);
     raise exception 'FALHA: aceitou venda com produto de outro usuário';
-  exception when foreign_key_violation then null;
+  exception when foreign_key_violation or insufficient_privilege then null;
   end;
   -- não pode alterar dados de outra pessoa
   update public.products set name = 'hack' where id = 'p1';

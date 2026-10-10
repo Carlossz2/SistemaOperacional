@@ -29,13 +29,21 @@ export function admin(): Admin {
   });
 }
 
-/** Usuário dono do JWT enviado pelo app (ou null). */
+/**
+ * Administrador dono do JWT enviado pelo app (ou null).
+ * Exige: token válido + ser o administrador + ter passado pelo 2FA, se ativo (mesma regra do banco).
+ */
 export async function userFromRequest(sb: Admin, req: Request): Promise<string | null> {
   const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
   if (!jwt) return null;
   const { data, error } = await sb.auth.getUser(jwt);
   if (error || !data.user) return null;
-  return data.user.id;
+  const asUser = createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: ok } = await asUser.rpc('gestor_access_ok');
+  return ok === true ? data.user.id : null;
 }
 
 export function functionsUrl(): string {
@@ -84,12 +92,25 @@ export class FxCache {
       .limit(1);
     const stored = data?.[0] as { day: string; rate: number } | undefined;
     let rate: number | undefined = stored && stored.day === day ? Number(stored.rate) : undefined;
+    const today = dayIn(new Date().toISOString());
     if (rate === undefined) {
-      const today = dayIn(new Date().toISOString());
       const ageDays = (Date.parse(today) - Date.parse(day)) / 86_400_000;
+      // vendas/gastos recentes: cotação do dia pela API
       if (ageDays <= 3) rate = (await this.fetchLatest(today))?.[cur];
     }
-    rate ??= stored ? Number(stored.rate) : this.fallback[cur];
+    // datas antigas: cotação guardada mais próxima (antes ou, se não houver, depois da data)
+    rate ??= stored ? Number(stored.rate) : undefined;
+    if (rate === undefined) {
+      const { data: after } = await this.sb
+        .from('fx_rates')
+        .select('rate')
+        .eq('currency', cur)
+        .gte('day', day)
+        .order('day', { ascending: true })
+        .limit(1);
+      if (after?.[0]) rate = Number(after[0].rate);
+    }
+    rate ??= this.fallback[cur] ?? (await this.fetchLatest(today))?.[cur];
     if (!rate || !(rate > 0)) throw new Error(`Sem cotação para ${cur} em ${day}. Cadastre a cotação em Configurações.`);
     this.cache.set(key, rate);
     return rate;

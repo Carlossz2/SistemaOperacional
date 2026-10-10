@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { PeriodProvider } from './lib/period';
 import { Icon } from './components/Icon';
-import { promptInstall, usePwa } from './lib/pwa';
+import { promptInstall, usePwa, useUpdating } from './lib/pwa';
+import { CloudGate, signOut } from './components/CloudGate';
+import { useSyncStatus } from './lib/cloud/sync';
+import { isCloudActive } from './lib/store';
+import { Integrations } from './pages/Integrations';
 import { Dashboard } from './pages/Dashboard';
 import { AdsPage, CapitalPage, ExpensesPage, ProductsPage, SalesPage } from './pages/Entries';
 import { Reports } from './pages/Reports';
@@ -16,6 +20,7 @@ const NAV = [
   { to: '/caixa', label: 'Caixa & capital', icon: 'capital' },
   { to: '/produtos', label: 'Produtos', icon: 'products' },
   { to: '/relatorios', label: 'Relatórios', icon: 'reports' },
+  { to: '/integracoes', label: 'Integrações', icon: 'plug' },
   { to: '/configuracoes', label: 'Configurações', icon: 'settings' },
 ];
 
@@ -81,6 +86,7 @@ function Shell() {
             </NavLink>
           ))}
           <div className="sidebar-foot">
+            <SaveIndicator />
             {pwa.canInstall && (
               <button className="nav-link install" onClick={promptInstall} data-tip="Instalar app" aria-label="Instalar app">
                 <Icon name="download" />
@@ -91,6 +97,12 @@ function Shell() {
               <Icon name={dark ? 'sun' : 'moon'} />
               <span className="nav-label">{dark ? 'Tema claro' : 'Tema escuro'}</span>
             </button>
+            {isCloudActive() && (
+              <button className="nav-link" onClick={() => void signOut()} data-tip="Sair" aria-label="Sair">
+                <Icon name="logout" />
+                <span className="nav-label">Sair</span>
+              </button>
+            )}
             <NavLink
               to="/configuracoes"
               data-tip="Configurações"
@@ -112,6 +124,7 @@ function Shell() {
             <Route path="/produtos" element={<ProductsPage />} />
             <Route path="/relatorios" element={<Reports />} />
             <Route path="/configuracoes" element={<Settings />} />
+            <Route path="/integracoes" element={<Integrations />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>
         </main>
@@ -120,12 +133,57 @@ function Shell() {
   );
 }
 
+const SAVE_LABEL: Record<string, string> = {
+  idle: 'Dados neste navegador',
+  loading: 'Carregando da nuvem…',
+  saving: 'Salvando na nuvem…',
+  saved: 'Tudo salvo na nuvem',
+  offline: 'Sem conexão — alterações guardadas para enviar',
+  error: 'Erro ao salvar',
+};
+
+/** Indicador de salvamento (bolinha verde = tudo salvo na nuvem). */
+function SaveIndicator() {
+  const st = useSyncStatus();
+  const cloud = isCloudActive();
+  const label = cloud
+    ? `${SAVE_LABEL[st.state]}${st.pending ? ` (${st.pending} pendente${st.pending > 1 ? 's' : ''})` : ''}`
+    : 'Dados só neste navegador';
+  return (
+    <NavLink to="/configuracoes" className="nav-link" data-tip={label} aria-label={label} style={{ position: 'relative' }}>
+      <Icon name="cloud" />
+      <span className="nav-label">{label}</span>
+      <i className={`save-dot ${cloud ? st.state : 'offline'}`} />
+    </NavLink>
+  );
+}
+
+/** Aviso flutuante quando algo não pôde ser salvo (ou quando o app está se atualizando). */
+function SyncToast() {
+  const st = useSyncStatus();
+  const updating = useUpdating();
+  const [hidden, setHidden] = useState('');
+  if (updating) return <div className="toast warn" role="status">Nova versão do Gestor DR disponível — atualizando…</div>;
+  if (!isCloudActive() || !st.message || hidden === st.message || (st.state !== 'error' && st.state !== 'offline')) return null;
+  return (
+    <div className={`toast ${st.state === 'offline' ? 'warn' : ''}`} role="status">
+      <span style={{ flex: 1 }}>{st.message}</span>
+      <button className="ghost" onClick={() => setHidden(st.message ?? '')} aria-label="Fechar">
+        <Icon name="close" size={14} />
+      </button>
+    </div>
+  );
+}
+
 export function App() {
   return (
-    <HashRouter>
-      <PeriodProvider>
-        <Shell />
-      </PeriodProvider>
-    </HashRouter>
+    <CloudGate>
+      <HashRouter>
+        <PeriodProvider>
+          <Shell />
+          <SyncToast />
+        </PeriodProvider>
+      </HashRouter>
+    </CloudGate>
   );
 }

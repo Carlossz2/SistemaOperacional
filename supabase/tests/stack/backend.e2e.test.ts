@@ -6,6 +6,10 @@ import pg from 'npm:pg@8.13.1';
 import { caktoApproved, hotmartApproved, perfectApproved } from '../../functions/_shared/fixtures.ts';
 
 const URL_BASE = 'http://localhost:54321';
+// o banco de testes começa sem administrador
+const reset = new pg.Pool({ connectionString: Deno.env.get('DATABASE_URL') ?? 'postgres://postgres:postgres@localhost:5432/gestor_e2e' });
+await reset.query('delete from auth.users');
+await reset.end();
 const ANON = Deno.env.get('ANON_KEY')!;
 const db = new pg.Pool({ connectionString: Deno.env.get('DATABASE_URL') ?? 'postgres://postgres:postgres@localhost:5432/gestor_e2e' });
 const opts = { sanitizeOps: false, sanitizeResources: false };
@@ -20,7 +24,6 @@ const post = (path: string, body: unknown, headers: Record<string, string> = {})
   fetch(`${URL_BASE}/functions/v1/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
 
 const sb = await newUser(`dono-${Date.now()}@teste.com`);
-const other = await newUser(`outro-${Date.now()}@teste.com`);
 const { data: me } = await sb.auth.getUser();
 const userId = me.user!.id;
 const jwt = (await sb.auth.getSession()).data.session!.access_token;
@@ -29,8 +32,16 @@ Deno.test({ name: 'app grava e lê dados próprios pela API', ...opts, fn: async
   assert(!(await sb.from('settings').upsert({ user_id: userId, data: { timezone: 'America/Sao_Paulo', rates: { USD: 5 } } })).error);
   const { error } = await sb.from('products').insert({ id: 'prod-keto', name: 'Keto' });
   assert(!error, error?.message);
-  const { data } = await other.from('products').select('*');
-  assertEquals(data?.length, 0, 'outro usuário não vê');
+}});
+
+Deno.test({ name: 'segundo cadastro é recusado (conta de administrador única)', ...opts, fn: async () => {
+  const intruder = createClient(URL_BASE, ANON, { auth: { persistSession: false } });
+  const { error } = await intruder.auth.signUp({ email: `invasor-${Date.now()}@teste.com`, password: 'senha-forte-123' });
+  assert(error, 'cadastro deveria falhar');
+  const { data } = await intruder.rpc('gestor_has_admin');
+  assertEquals(data, true);
+  const { data: rows } = await intruder.from('products').select('*');
+  assertEquals(rows ?? [], [], 'anônimo não lê nada');
 }});
 
 let hotmartToken = '';
@@ -150,10 +161,9 @@ Deno.test({ name: 'Meta: sincroniza gastos com paginação, regras e cotação; 
   assert(!err.ok && err.results[0].message.includes('expirado'), JSON.stringify(err));
   const { data: integ } = await sb.from('integrations').select('last_sync_status').eq('id', meta!.id).single();
   assert(integ?.last_sync_status?.startsWith('erro'));
-  // outro usuário não sincroniza a integração alheia
-  const otherJwt = (await other.auth.getSession()).data.session!.access_token;
-  const r2 = await post('meta-sync', { integrationId: meta!.id }, { Authorization: `Bearer ${otherJwt}` });
-  assertEquals((await r2.json()).results.length, 0);
+  // sem login (ou com token inválido) não sincroniza
+  const r2 = await post('meta-sync', { integrationId: meta!.id }, { Authorization: 'Bearer token-falso' });
+  assertEquals(r2.status, 401);
 }});
 
 Deno.test({ name: 'agendador: segredo interno sincroniza e tenta de novo webhooks com erro', ...opts, fn: async () => {
@@ -166,4 +176,32 @@ Deno.test({ name: 'agendador: segredo interno sincroniza e tenta de novo webhook
   assertEquals(res.status, 200, JSON.stringify(body));
   assert(body.results.length >= 1 && body.results.every((r: { ok: boolean }) => r.ok), JSON.stringify(body));
   await db.end();
+}});
+
+Deno.test({ name: '2FA: sem o código o banco e as funções bloqueiam; com o código liberam', ...opts, fn: async () => {
+  const { data: enroll, error } = await sb.auth.mfa.enroll({ factorType: 'totp' });
+  assert(!error, error?.message);
+  const wrong = await sb.auth.mfa.challengeAndVerify({ factorId: enroll!.id, code: '000000' });
+  assert(wrong.error, 'código errado recusado');
+  const ok = await sb.auth.mfa.challengeAndVerify({ factorId: enroll!.id, code: '123456' });
+  assert(!ok.error, ok.error?.message);
+  const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+  assertEquals(aal?.currentLevel, 'aal2');
+  // nova sessão só com senha (aal1)
+  const email = (await sb.auth.getUser()).data.user!.email!;
+  const fresh = createClient(URL_BASE, ANON, { auth: { persistSession: false } });
+  await fresh.auth.signInWithPassword({ email, password: 'senha-forte-123' });
+  const { data: lvl } = await fresh.auth.mfa.getAuthenticatorAssuranceLevel();
+  assertEquals([lvl?.currentLevel, lvl?.nextLevel], ['aal1', 'aal2']);
+  const { data: rows } = await fresh.from('products').select('*');
+  assertEquals(rows?.length, 0, 'aal1 não lê dados');
+  const aal1Jwt = (await fresh.auth.getSession()).data.session!.access_token;
+  assertEquals((await post('reprocess', {}, { Authorization: `Bearer ${aal1Jwt}` })).status, 401);
+  // depois do código, libera
+  const factorId = (await fresh.auth.mfa.listFactors()).data!.totp[0].id;
+  assert(!(await fresh.auth.mfa.challengeAndVerify({ factorId, code: '123456' })).error);
+  const { data: rows2 } = await fresh.from('products').select('*');
+  assert((rows2?.length ?? 0) > 0, 'aal2 lê dados');
+  // remove o 2FA para não afetar outros testes
+  assert(!(await fresh.auth.mfa.unenroll({ factorId })).error);
 }});

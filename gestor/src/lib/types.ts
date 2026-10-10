@@ -39,16 +39,22 @@ export interface Sale extends MoneyEntry {
   fees: number;
   /** Reembolsos + chargebacks */
   refunds: number;
+  /** manual = lançado no app; auto = consolidado das vendas recebidas por webhook (somente leitura) */
+  origin?: 'manual' | 'auto';
 }
 
 /** Investimento em tráfego pago. */
 export interface AdSpend extends MoneyEntry {
+  /** Vazio quando um gasto sincronizado não tem produto associado */
   productId: ID;
   /** Meta Ads, Google Ads, TikTok Ads, Native... */
   source: string;
   campaign?: string;
   country: string;
   amount: number;
+  /** manual = lançado no app; meta = sincronizado da Meta Ads (somente leitura) */
+  origin?: 'manual' | 'meta';
+  metrics?: Record<string, number> | null;
 }
 
 export type Recurrence = 'none' | 'monthly';
@@ -82,6 +88,8 @@ export interface Settings {
   /** Alíquota estimada de imposto sobre a receita líquida (%), ex: Simples Nacional */
   taxRate: number;
   businessName: string;
+  /** Fuso usado para definir o dia das vendas recebidas por webhook */
+  timezone: string;
   platforms: string[];
   adSources: string[];
   expenseCategories: string[];

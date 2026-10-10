@@ -61,45 +61,82 @@ const CORS = {
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-// ------------------------------------------------------------------ auth
-async function session(user: { id: string; email: string }) {
-  const exp = now() + 3600;
-  const access_token = await sign({ sub: user.id, email: user.email, role: 'authenticated', aud: 'authenticated', iat: now(), exp });
-  const u = { id: user.id, email: user.email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, created_at: new Date().toISOString() };
-  return { access_token, token_type: 'bearer', expires_in: 3600, expires_at: exp, refresh_token: `rt-${user.id}`, user: u };
+// ------------------------------------------------------------------ auth (inclui 2FA simulado: código 123456)
+async function factors(userId: string) {
+  const r = await db.query('select id, friendly_name, factor_type, status, created_at from auth.mfa_factors where user_id = $1', [userId]);
+  return r.rows.map((f) => ({ ...f, updated_at: f.created_at }));
 }
 
-async function auth(req: Request, path: string): Promise<Response> {
+async function session(user: { id: string; email: string }, aal: 'aal1' | 'aal2' = 'aal1') {
+  const exp = now() + 3600;
+  const access_token = await sign({ sub: user.id, email: user.email, role: 'authenticated', aud: 'authenticated', aal, amr: [{ method: aal === 'aal2' ? 'totp' : 'password', timestamp: now() }], session_id: crypto.randomUUID(), iat: now(), exp });
+  const u = { id: user.id, email: user.email, aud: 'authenticated', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: {}, factors: await factors(user.id), created_at: new Date().toISOString() };
+  return { access_token, token_type: 'bearer', expires_in: 3600, expires_at: exp, refresh_token: `rt-${user.id}-${aal}`, user: u };
+}
+
+async function claimsOf(req: Request) {
+  return await verify((req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, ''));
+}
+
+async function auth(req: Request, path: string, sub: string[]): Promise<Response> {
   const url = new URL(req.url);
   if (path === 'signup' && req.method === 'POST') {
     const { email, password } = await req.json();
     const exists = await db.query('select 1 from auth.users where email = $1', [email]);
     if (exists.rowCount) return json({ code: 422, msg: 'User already registered', error_code: 'user_already_exists' }, 422);
     const id = crypto.randomUUID();
-    await db.query('insert into auth.users (id, email) values ($1, $2)', [id, email]);
+    try {
+      await db.query('insert into auth.users (id, email) values ($1, $2)', [id, email]);
+    } catch {
+      // mesmo comportamento do Supabase Auth quando um gatilho do banco recusa o cadastro
+      return json({ code: 500, error_code: 'unexpected_failure', msg: 'Database error saving new user' }, 500);
+    }
     await db.query('insert into test_auth.passwords (user_id, password) values ($1, $2)', [id, password]);
     return json(await session({ id, email }));
   }
   if (path === 'token' && req.method === 'POST') {
     const body = await req.json();
     if (url.searchParams.get('grant_type') === 'refresh_token') {
-      const id = String(body.refresh_token).replace(/^rt-/, '');
+      const [, id, aal] = String(body.refresh_token).match(/^rt-(.+)-(aal[12])$/) ?? [];
       const r = await db.query('select id, email from auth.users where id = $1', [id]);
-      return r.rowCount ? json(await session(r.rows[0])) : json({ error: 'invalid_grant' }, 400);
+      return r.rowCount ? json(await session(r.rows[0], aal as 'aal1' | 'aal2')) : json({ error: 'invalid_grant' }, 400);
     }
     const r = await db.query(
       'select u.id, u.email from auth.users u join test_auth.passwords p on p.user_id = u.id where u.email = $1 and p.password = $2',
       [body.email, body.password],
     );
-    if (!r.rowCount) return json({ error: 'invalid_grant', error_description: 'Invalid login credentials' }, 400);
+    if (!r.rowCount) return json({ error: 'invalid_grant', error_description: 'Invalid login credentials', msg: 'Invalid login credentials' }, 400);
     return json(await session(r.rows[0]));
   }
+  if (path === 'settings') return json({ external: { email: true }, disable_signup: false });
+  if (path === 'recover') return json({});
+  const claims = await claimsOf(req);
+  if (!claims?.sub) return json({ msg: 'invalid JWT' }, 401);
+  const user = { id: String(claims.sub), email: String(claims.email) };
   if (path === 'user') {
-    const claims = await verify((req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, ''));
-    if (!claims?.sub) return json({ msg: 'invalid JWT' }, 401);
-    return json({ id: claims.sub, email: claims.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} });
+    return json({ id: user.id, email: user.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, factors: await factors(user.id) });
   }
   if (path === 'logout') return new Response(null, { status: 204, headers: CORS });
+  if (path === 'factors') {
+    const [factorId, action] = sub;
+    if (!factorId && req.method === 'POST') {
+      const body = await req.json();
+      const r = await db.query("insert into auth.mfa_factors (user_id, friendly_name, factor_type, status) values ($1, $2, 'totp', 'unverified') returning id", [user.id, body.friendly_name ?? null]);
+      const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><rect width='120' height='120' fill='white'/><text x='10' y='60'>QR</text></svg>";
+      return json({ id: r.rows[0].id, type: 'totp', friendly_name: body.friendly_name, totp: { qr_code: `data:image/svg+xml;utf-8,${svg}`, secret: 'JBSWY3DPEHPK3PXP', uri: 'otpauth://totp/Gestor:teste?secret=JBSWY3DPEHPK3PXP' } });
+    }
+    if (factorId && action === 'challenge') return json({ id: crypto.randomUUID(), type: 'totp', expires_at: now() + 300 });
+    if (factorId && action === 'verify') {
+      const body = await req.json();
+      if (body.code !== '123456') return json({ code: 422, error_code: 'mfa_verification_failed', msg: 'Invalid TOTP code entered' }, 422);
+      await db.query("update auth.mfa_factors set status = 'verified' where id = $1 and user_id = $2", [factorId, user.id]);
+      return json(await session(user, 'aal2'));
+    }
+    if (factorId && req.method === 'DELETE') {
+      await db.query('delete from auth.mfa_factors where id = $1 and user_id = $2', [factorId, user.id]);
+      return json({ id: factorId });
+    }
+  }
   return json({ msg: 'not implemented' }, 404);
 }
 
@@ -138,7 +175,7 @@ Deno.serve({ port: PORT, onListen: () => console.log(`gateway em ${BASE}\nANON_K
       Object.entries(CORS).forEach(([k, v]) => out.set(k, v));
       return new Response(res.body, { status: res.status, headers: out });
     }
-    if (area === 'auth') return await auth(req, rest[1] ?? '');
+    if (area === 'auth') return await auth(req, rest[1] ?? '', rest.slice(2));
     if (area === 'functions') {
       const fn = functions[rest[1]];
       if (!fn) return json({ error: 'função não existe' }, 404);

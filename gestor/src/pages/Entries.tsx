@@ -10,7 +10,7 @@ const productOptions = (db: Database) =>
   [...db.products]
     .sort((a, b) => Number(b.active) - Number(a.active))
     .map((p) => ({ value: p.id, label: p.active ? p.name : `${p.name} (pausado)` }));
-const productName = (db: Database, id?: string) => db.products.find((p) => p.id === id)?.name ?? '—';
+const productName = (db: Database, id?: string) => (id ? db.products.find((p) => p.id === id)?.name ?? '—' : 'Sem produto');
 const COUNTRIES = ['BR', 'US', 'MX', 'CO', 'AR', 'CL', 'PE', 'EC', 'ES', 'PT', 'CA', 'GB', 'AU', 'DE', 'FR', 'IT'];
 const countries = (db: Database) => [...new Set([...COUNTRIES, ...db.sales.map((s) => s.country), ...db.ads.map((a) => a.country)])];
 const sum = <T,>(xs: T[], fn: (x: T) => number) => xs.reduce((a, x) => a + fn(x), 0);
@@ -41,8 +41,9 @@ export function SalesPage() {
   return (
     <Crud<Sale>
       title="Receitas"
-      subtitle="Vendas aprovadas por dia, produto, plataforma e país. Pode lançar venda a venda ou o consolidado do dia."
+      subtitle="Vendas aprovadas por dia, produto, plataforma e país. As recebidas por webhook entram sozinhas (🔒); as demais você lança aqui."
       collection="sales"
+      locked={(s) => (s.origin === 'auto' ? `Recebida automaticamente (${s.platform}). Detalhes em Integrações → Vendas recebidas.` : null)}
       byPeriod
       fields={fields}
       emptyHint={<NeedProduct />}
@@ -87,8 +88,9 @@ export function AdsPage() {
   return (
     <Crud<AdSpend>
       title="Tráfego pago"
-      subtitle="Investimento em anúncios por dia, fonte, produto e país."
+      subtitle="Investimento em anúncios por dia, fonte, produto e país. Os gastos da Meta sincronizados entram sozinhos (🔒)."
       collection="ads"
+      locked={(a) => (a.origin === 'meta' ? 'Sincronizado da Meta Ads. Para mudar o produto, ajuste as regras em Integrações e sincronize de novo.' : null)}
       byPeriod
       emptyHint={<NeedProduct />}
       fields={[

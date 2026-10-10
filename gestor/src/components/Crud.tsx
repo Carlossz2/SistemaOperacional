@@ -45,6 +45,8 @@ interface Props<T extends { id: string }> {
   emptyHint?: ReactNode;
   /** Retorna um motivo para bloquear a exclusão (ex.: produto com lançamentos) */
   blockDelete?: (item: T, db: Database) => string | null;
+  /** Registro somente leitura (ex.: venda recebida por webhook): retorna o motivo */
+  locked?: (item: T) => string | null;
 }
 
 export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
@@ -120,6 +122,13 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
                     </td>
                   ))}
                   <td>
+                    {props.locked?.(it) ? (
+                      <div className="row-actions">
+                        <span className="lock" title={props.locked(it)!}>
+                          <Icon name="lock" size={15} />
+                        </span>
+                      </div>
+                    ) : (
                     <div className="row-actions">
                       <button className="ghost" title="Editar" onClick={() => open({ ...it })}>
                         <Icon name="edit" size={16} />
@@ -141,6 +150,7 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
                         <Icon name="trash" size={16} />
                       </button>
                     </div>
+                    )}
                   </td>
                 </tr>
               ))}

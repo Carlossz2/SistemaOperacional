@@ -1,16 +1,31 @@
 import { useSyncExternalStore } from 'react';
 import type { Collection, Database, Settings } from './types';
 
-// Os dados ficam no navegador (localStorage). A camada é isolada aqui para que,
-// no futuro, a troca por um backend (ex: Supabase) não afete as telas.
+// Estado do app em memória + persistência.
+// Modo local: grava no localStorage. Modo nuvem: cada alteração vira uma operação que o
+// módulo cloud/sync envia ao Supabase (com fila offline). As telas não precisam saber qual é.
 
-const KEY = 'gestor-dr:db';
+export const LOCAL_KEY = 'gestor-dr:db';
+const KEY = LOCAL_KEY;
+
+export type WriteOp =
+  | { collection: Collection; kind: 'upsert'; id: string; item: unknown }
+  | { collection: Collection; kind: 'delete'; id: string }
+  | { collection: 'settings'; kind: 'upsert'; id: 'settings'; item: Settings };
+
+/** Quando definido (modo nuvem), recebe cada alteração em vez de gravar no localStorage. */
+let writeHook: ((op: WriteOp) => void) | null = null;
+
+export function setWriteHook(hook: ((op: WriteOp) => void) | null) {
+  writeHook = hook;
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   baseCurrency: 'BRL',
   rates: { BRL: 1, USD: 5.4, EUR: 5.9, GBP: 6.9, MXN: 0.3, COP: 0.0013, ARS: 0.0045, CLP: 0.0057, PEN: 1.45 },
   taxRate: 6,
   businessName: 'Minha Operação',
+  timezone: 'America/Sao_Paulo',
   platforms: ['Hotmart', 'Kiwify', 'Eduzz', 'Monetizze', 'Braip', 'ClickBank', 'Digistore24', 'BuyGoods', 'Stripe', 'PayPal'],
   adSources: ['Meta Ads', 'Google Ads', 'YouTube Ads', 'TikTok Ads', 'Taboola', 'Outbrain', 'Native', 'Bing Ads'],
   expenseCategories: [
@@ -48,7 +63,7 @@ export function normalize(raw: unknown): Database {
   };
 }
 
-function load(): Database {
+export function loadLocal(): Database {
   try {
     const raw = localStorage.getItem(KEY);
     return raw ? normalize(JSON.parse(raw)) : emptyDb();
@@ -57,26 +72,44 @@ function load(): Database {
   }
 }
 
-let db: Database = load();
+let db: Database = emptyDb();
 const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((l) => l());
 
-function commit(next: Database) {
+function commit(next: Database, op?: WriteOp) {
   db = next;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(db));
-  } catch (err) {
-    console.error('Falha ao salvar no navegador', err);
-    alert('Não foi possível salvar os dados no navegador. Exporte um backup em Configurações.');
+  if (writeHook) {
+    if (op) writeHook(op);
+  } else {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(db));
+    } catch (err) {
+      console.error('Falha ao salvar no navegador', err);
+      alert('Não foi possível salvar os dados no navegador. Exporte um backup em Configurações.');
+    }
   }
-  listeners.forEach((l) => l());
+  notify();
 }
 
-// Sincroniza entre abas abertas
+/** Troca o estado sem gerar operações (carregamento inicial, dados vindos da nuvem). */
+export function setDb(next: Database) {
+  db = next;
+  notify();
+}
+
+/** Inicia o modo local (dados do localStorage). */
+export function startLocal() {
+  writeHook = null;
+  db = loadLocal();
+  notify();
+}
+
+// Sincroniza entre abas abertas (modo local)
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.key === KEY) {
-      db = load();
-      listeners.forEach((l) => l());
+    if (e.key === KEY && !writeHook) {
+      db = loadLocal();
+      notify();
     }
   });
 }
@@ -105,20 +138,25 @@ export function upsert<C extends Collection>(collection: C, item: Item<C>) {
   const list = db[collection] as Item<C>[];
   const exists = list.some((x) => x.id === item.id);
   const next = exists ? list.map((x) => (x.id === item.id ? item : x)) : [...list, item];
-  commit({ ...db, [collection]: next });
+  commit({ ...db, [collection]: next }, { collection, kind: 'upsert', id: item.id, item });
 }
 
 export function remove(collection: Collection, id: string) {
-  commit({ ...db, [collection]: (db[collection] as { id: string }[]).filter((x) => x.id !== id) });
+  commit({ ...db, [collection]: (db[collection] as { id: string }[]).filter((x) => x.id !== id) }, { collection, kind: 'delete', id });
 }
 
 export function updateSettings(patch: Partial<Settings>) {
-  commit({ ...db, settings: { ...db.settings, ...patch } });
+  const settings = { ...db.settings, ...patch };
+  commit({ ...db, settings }, { collection: 'settings', kind: 'upsert', id: 'settings', item: settings });
 }
 
+/** Substitui tudo (somente modo local: restaurar backup / apagar tudo). */
 export function replaceDb(next: Database) {
+  if (writeHook) throw new Error('No modo nuvem use a importação, que envia registro a registro.');
   commit(normalize(next));
 }
+
+export const isCloudActive = () => writeHook !== null;
 
 /** Cotação padrão de uma moeda para a moeda base. */
 export function defaultRate(currency: string): number {

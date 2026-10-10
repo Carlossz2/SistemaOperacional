@@ -383,3 +383,41 @@ td.pos, .pos-text { color: var(--good-text); }
   .hero-row { grid-template-columns: 1fr; }
   .mini-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---------- Login / configuração ---------- */
+.auth-wrap { min-height: 100%; display: grid; place-items: center; padding: 24px 16px; }
+.auth-card {
+  width: min(420px, 100%);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  padding: 28px; box-shadow: var(--shadow);
+}
+.auth-links { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; margin-top: 12px; }
+.auth-links button { color: var(--ink-2); font-size: 12.5px; }
+.sep { border: 0; border-top: 1px solid var(--border); margin: 18px 0 12px; }
+
+/* ---------- Status de salvamento ---------- */
+.save-dot { width: 8px; height: 8px; border-radius: 50%; position: absolute; right: 6px; top: 6px; border: 2px solid var(--page); }
+.save-dot.saved { background: var(--good-text); }
+.save-dot.saving, .save-dot.loading { background: var(--series-2); }
+.save-dot.offline { background: var(--series-2); }
+.save-dot.error { background: var(--bad-text); }
+.toast {
+  position: fixed; right: 16px; bottom: 16px; z-index: 60; max-width: min(420px, calc(100% - 32px));
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-left: 3px solid var(--bad-text);
+  border-radius: 12px; padding: 12px 14px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.toast.warn { border-left-color: var(--series-2); }
+.lock { color: var(--muted); display: inline-flex; padding: 6px 8px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--ink-2); padding: 10px 12px; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+.code {
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px; overflow: auto; max-height: 60vh; white-space: pre;
+}
+.url-box { display: flex; gap: 6px; align-items: center; }
+.url-box input { flex: 1; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.int-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.badge i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
