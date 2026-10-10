@@ -1,7 +1,7 @@
 // Teste de ponta a ponta do backend contra o "mini Supabase" local (start.sh precisa estar rodando).
 // deno test -A supabase/tests/stack/backend.e2e.test.ts
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
+import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
 import pg from 'npm:pg@8.13.1';
 import { caktoApproved, hotmartApproved, perfectApproved } from '../../functions/_shared/fixtures.ts';
 

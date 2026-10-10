@@ -1,5 +1,5 @@
 // Peças comuns das Edge Functions que falam com o banco (Deno).
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.45.4';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.2';
 import { ADAPTERS, type AdapterConfig, type PlatformKey } from './adapters.ts';
 import { processPayload, type Repo, type TransactionRow } from './process.ts';
 import { dayIn } from './util.ts';

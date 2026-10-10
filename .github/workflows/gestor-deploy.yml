@@ -5,7 +5,7 @@ name: Gestor DR — Publicar no GitHub Pages
 # Antes, ative em Settings → Pages → Source: "GitHub Actions".
 on:
   push:
-    paths: ['gestor/**', '.github/workflows/gestor-deploy.yml']
+    paths: ['gestor/**', 'supabase/functions/_shared/**', '.github/workflows/gestor-deploy.yml']
   workflow_dispatch:
 
 permissions:
@@ -37,7 +37,11 @@ jobs:
           cache-dependency-path: gestor/package-lock.json
       - run: npm ci
       - run: npm test
-      - run: npm run build
+      - name: Build (já conectado ao seu Supabase)
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

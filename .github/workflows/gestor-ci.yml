@@ -2,9 +2,9 @@ name: Gestor DR — CI
 
 on:
   push:
-    paths: ['gestor/**', '.github/workflows/gestor-*.yml']
+    paths: ['gestor/**', 'supabase/functions/_shared/**', '.github/workflows/gestor-*.yml']
   pull_request:
-    paths: ['gestor/**', '.github/workflows/gestor-*.yml']
+    paths: ['gestor/**', 'supabase/functions/_shared/**', '.github/workflows/gestor-*.yml']
 
 jobs:
   build:

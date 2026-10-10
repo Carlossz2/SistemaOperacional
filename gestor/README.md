@@ -71,19 +71,42 @@ Vercel ou Netlify servem.
 
 ## Onde ficam os dados
 
-Os dados ficam no **navegador** (localStorage) — nada vai para servidor, então mesmo publicado em URL pública
-ninguém vê seus números. Consequência: cada navegador/computador tem sua própria base. **Exporte o backup
-(Configurações) com frequência**; o mesmo arquivo restaura os dados em outra máquina.
+**Na nuvem (Supabase)** — recomendado e necessário para integrações. Passo a passo em **[GUIA.md](GUIA.md)**.
 
-A camada de dados está isolada em `src/lib/store.ts` para permitir trocar por um backend com login
-(ex.: Supabase) sem mexer nas telas.
+- Acesso exclusivo do administrador: a primeira conta criada é a única; o banco recusa novos cadastros.
+- Verificação em duas etapas (TOTP) exigida pelo próprio banco quando ativada; saída automática por inatividade.
+- Cada usuário só acessa os próprios dados (RLS); vendas automáticas e gastos da Meta são somente leitura no app.
+- Toda alteração entra numa fila salva no aparelho antes de ir ao servidor: sem internet, nada se perde.
+- Webhooks: o conteúdo bruto de cada notificação é gravado antes de qualquer processamento e nunca é apagado;
+  eventos repetidos ou fora de ordem não duplicam nem desfazem reembolsos; dá para reprocessar.
+
+**Só no navegador (modo local)** — para testar sem nuvem; não disponível quando o app é publicado com o Supabase embutido.
+
+## Integrações
+
+| Origem | Como | O que entra |
+|---|---|---|
+| Hotmart, Cakto, Lastlink, GGCheckout, PerfectPay | Webhook (URL secreta por integração + segredo da plataforma) | Vendas, reembolsos e chargebacks, por produto, país e moeda |
+| Qualquer outra plataforma | Webhook com mapeamento de campos configurável | Idem |
+| Meta Ads | Marketing API (token de usuário do sistema, `ads_read`), de hora em hora | Gasto diário por campanha e país, com regras campanha → produto |
+
+## Testes
+
+```bash
+cd gestor && npm test                                   # cálculos e formatos
+deno test supabase/functions/_shared                    # adaptadores das plataformas
+supabase/tests/run.sh                                   # banco: segurança, consolidação, 2FA
+supabase/tests/stack/start.sh && deno test -A supabase/tests/stack/backend.e2e.test.ts   # ponta a ponta
+```
 
 ## Estrutura
 
 ```
 src/lib/types.ts     modelo de dados
 src/lib/metrics.ts   motor de cálculo (P&L, séries, quebras, caixa) + metrics.test.ts
-src/lib/store.ts     persistência e CRUD
+src/lib/store.ts     estado e CRUD (local ou nuvem)
+src/lib/cloud/       Supabase: conexão, fila offline, tempo real, conversão de dados
+../supabase/         banco (migrations), Edge Functions (webhook, reprocess, meta-sync) e testes
 src/lib/period.tsx   período/filtros globais
 src/pages/           telas
 src/components/      tabela/formulário genérico, gráficos, KPIs
@@ -91,7 +114,6 @@ src/components/      tabela/formulário genérico, gráficos, KPIs
 
 ## Próximos passos sugeridos
 
-1. Backend com login (Supabase) para acessar de qualquer dispositivo e com sócios.
-2. Importação automática: webhooks/CSV de Hotmart, Kiwify, ClickBank, Digistore24 e gasto via API do Meta/Google Ads.
-3. Metas mensais e alertas (lucro, ROAS mínimo, CPA).
-4. Fluxo de caixa projetado (saques pendentes das plataformas, D+30 etc.).
+1. Metas mensais e alertas (lucro, ROAS mínimo, CPA).
+2. Fluxo de caixa projetado (saques pendentes das plataformas, D+30 etc.).
+3. Google Ads / TikTok Ads.
