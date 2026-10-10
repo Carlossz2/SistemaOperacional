@@ -40,8 +40,14 @@ jobs:
       - name: Build (já conectado ao seu Supabase)
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          # aceita tanto em Variables quanto em Secrets (são valores públicos)
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+      - name: Conexão com o Supabase embutida?
+        run: |
+          if [ -z "$(grep -l 'supabase.co' dist/assets/*.js 2>/dev/null)" ]; then
+            echo "::warning::VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY não encontrados: o app vai pedir a conexão na primeira abertura. Cadastre-os em Settings → Secrets and variables → Actions."
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
