@@ -1,0 +1,14 @@
+# Configuração usada pelo Supabase CLI (deploy via GitHub Actions).
+project_id = "gestor-dr"
+
+# Webhooks das plataformas chegam sem login: a autenticação é o token secreto na URL
+# (+ o segredo da plataforma, quando configurado).
+[functions.webhook]
+verify_jwt = false
+
+# Chamado pelo app (JWT do usuário, validado dentro da função) e pelo agendador (segredo interno).
+[functions.meta-sync]
+verify_jwt = false
+
+[functions.reprocess]
+verify_jwt = false

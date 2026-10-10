@@ -1,0 +1,24 @@
+{
+  "name": "Gestor DR — Controle da operação",
+  "short_name": "Gestor DR",
+  "description": "Controle financeiro da operação de direct response: receitas, tráfego, despesas, lucro, ROAS e caixa.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "pt-BR",
+  "background_color": "#0b0c0e",
+  "theme_color": "#0b0c0e",
+  "categories": ["finance", "business", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Lançar receita", "url": "./#/receitas", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Lançar tráfego", "url": "./#/trafego", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Relatórios", "url": "./#/relatorios", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
