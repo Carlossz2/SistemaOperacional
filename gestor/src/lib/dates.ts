@@ -16,6 +16,13 @@ export function addDays(iso: string, days: number): string {
   return toISO(new Date(y, m - 1, d + days));
 }
 
+/** Segunda-feira da semana da data (semanas de segunda a domingo). */
+export function weekStart(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dow = new Date(y, m - 1, d).getDay(); // 0 = domingo
+  return addDays(iso, dow === 0 ? -6 : 1 - dow);
+}
+
 export function monthOf(iso: string): string {
   return iso.slice(0, 7);
 }

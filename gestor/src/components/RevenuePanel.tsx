@@ -52,7 +52,7 @@ function Platforms() {
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, number>>({});
-  const sales = list.filter((i) => i.platform !== 'meta');
+  const sales = list.filter((i) => SALES_PLATFORMS.includes(i.platform as PlatformKey));
 
   const loadErrors = useCallback(async () => {
     const { data } = await supabase()

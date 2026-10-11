@@ -5,7 +5,9 @@
 //   /functions/v1/*  -> Edge Functions deste repositório, rodando no mesmo processo
 //   /fake-graph/*    -> imitação da Marketing API da Meta (para testar a sincronização)
 //   /fake-fx         -> imitação da API de câmbio
+//   /fake-mp/*       -> imitação da API de relatórios do Mercado Pago
 import pg from 'npm:pg@8.13.1';
+import { mpReleaseCsv } from '../../functions/_shared/fixtures.ts';
 
 const PORT = Number(Deno.env.get('GATEWAY_PORT') ?? 54321);
 const BASE = `http://localhost:${PORT}`;
@@ -46,11 +48,13 @@ Deno.env.set('SUPABASE_ANON_KEY', ANON_KEY);
 Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', SERVICE_KEY);
 Deno.env.set('META_GRAPH_BASE', `${BASE}/fake-graph`);
 Deno.env.set('FX_API_URL', `${BASE}/fake-fx`);
+Deno.env.set('MP_API_BASE', `${BASE}/fake-mp`);
 
 const functions: Record<string, (req: Request) => Promise<Response>> = {
   webhook: (await import('../../functions/webhook/handler.ts')).handler,
   reprocess: (await import('../../functions/reprocess/handler.ts')).handler,
   'meta-sync': (await import('../../functions/meta-sync/handler.ts')).handler,
+  'bank-sync': (await import('../../functions/bank-sync/handler.ts')).handler,
 };
 
 const CORS = {
@@ -159,6 +163,29 @@ const fakeGraph = (req: Request): Response => {
   return json({ data: [rows[1]] });
 };
 
+// ------------------------------------------------------------------ Mercado Pago simulado
+// Relatório de liberações: pedido → fica pronto ~1,5 s depois → baixado em CSV. Token válido: "mp-bom".
+const mp = { config: false, reports: [] as { file_name: string; readyAt: number; date_created: string }[] };
+const fakeMp = async (req: Request, path: string): Promise<Response> => {
+  if (req.headers.get('authorization') !== 'Bearer mp-bom') return json({ message: 'invalid access token' }, 401);
+  if (path === 'v1/account/release_report/config') {
+    if (req.method === 'POST') {
+      mp.config = true;
+      return json({ file_name_prefix: 'cadigital' }, 201);
+    }
+    return mp.config ? json({ file_name_prefix: 'cadigital' }) : json({ message: 'not found' }, 404);
+  }
+  if (path === 'v1/account/release_report' && req.method === 'POST') {
+    const n = mp.reports.length + 1;
+    mp.reports.push({ file_name: `cadigital-${n}.csv`, readyAt: Date.now() + 1500, date_created: new Date().toISOString() });
+    return json({ id: n, status: 'pending' }, 202);
+  }
+  if (path === 'v1/account/release_report/list') return json(mp.reports.map(({ file_name, date_created }) => ({ file_name, date_created })));
+  const file = mp.reports.find((r) => path === `v1/account/release_report/${r.file_name}`);
+  if (file) return Date.now() < file.readyAt ? json({ message: 'not ready' }, 404) : new Response(mpReleaseCsv, { headers: { 'Content-Type': 'text/csv' } });
+  return json({ message: 'rota desconhecida' }, 404);
+};
+
 // ------------------------------------------------------------------ servidor
 Deno.serve({ port: PORT, onListen: () => console.log(`gateway em ${BASE}\nANON_KEY=${ANON_KEY}`) }, async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -183,6 +210,7 @@ Deno.serve({ port: PORT, onListen: () => console.log(`gateway em ${BASE}\nANON_K
       return await fn(inner);
     }
     if (area === 'fake-graph') return fakeGraph(req);
+    if (area === 'fake-mp') return await fakeMp(req, rest.join('/'));
     if (area === 'fake-fx') return json({ result: 'success', rates: { BRL: 1, USD: 0.2, EUR: 0.16, MXN: 3.4 } });
     return json({ error: 'rota desconhecida' }, 404);
   } catch (err) {

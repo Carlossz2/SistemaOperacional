@@ -12,3 +12,7 @@ verify_jwt = false
 
 [functions.reprocess]
 verify_jwt = false
+
+# Extrato do Mercado Pago (JWT do usuário validado dentro da função).
+[functions.bank-sync]
+verify_jwt = false

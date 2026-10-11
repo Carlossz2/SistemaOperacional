@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { breakdown, campaignBreakdown, campaignNames, capitalSummary, computeTotals, expandExpenses, timeSeries } from './metrics';
+import { breakdown, campaignBreakdown, campaignNames, capitalSummary, spendBreakdown, weeklySummary, weekToDate, computeTotals, expandExpenses, timeSeries } from './metrics';
 import { emptyDb } from './store';
-import { previousPeriod, resolvePreset } from './dates';
+import { previousPeriod, resolvePreset, weekStart } from './dates';
 import type { Database, Expense } from './types';
 
 function db(): Database {
@@ -137,5 +137,36 @@ describe('campaignBreakdown', () => {
     expect(t).toMatchObject({ ads: 100, gross: 400, units: 2, expenses: 0 });
     expect(campaignNames(d)).toEqual(['KETO 01']);
     expect(campaignNames(d, 'p2')).toEqual([]);
+  });
+});
+
+describe('semana a semana', () => {
+  it('semana começa na segunda', () => {
+    expect(weekStart('2026-01-11')).toBe('2026-01-05'); // domingo
+    expect(weekStart('2026-01-05')).toBe('2026-01-05'); // segunda
+    expect(weekStart('2026-01-07')).toBe('2026-01-05');
+  });
+  it('agrupa por semana, da mais recente para a mais antiga', () => {
+    const d = db(); // vendas e ads em 10 e 11/01 (sáb/dom), despesa em 05/01 (seg): mesma semana
+    const w = weeklySummary(d, 3, '2026-01-14');
+    expect(w.map((x) => [x.from, x.to, x.current])).toEqual([
+      ['2026-01-12', '2026-01-14', true],
+      ['2026-01-05', '2026-01-11', false],
+      ['2025-12-29', '2026-01-04', false],
+    ]);
+    expect(w[1].spend).toBe(650 + 100);
+    expect(w[1].deductions).toBe(150 + 100 + 125);
+    expect(w[1].totals.profit).toBe(375);
+    expect(w[0].spend).toBe(0);
+  });
+  it('semana atual × mesmo trecho da semana passada', () => {
+    const r = weekToDate(db(), '2026-01-13'); // terça
+    expect([r.current.from, r.current.to, r.previous.from, r.previous.to]).toEqual(['2026-01-12', '2026-01-13', '2026-01-05', '2026-01-06']);
+    expect(r.previous.spend).toBe(100); // só a despesa de segunda
+  });
+  it('para onde foi o dinheiro', () => {
+    const b = spendBreakdown(db(), { from: '2026-01-01', to: '2026-01-31' });
+    expect(b.ads).toEqual([{ label: 'Meta Ads', amount: 400 }, { label: 'Google Ads', amount: 250 }]);
+    expect(b.expenses).toEqual([{ label: 'Ferramentas / SaaS', amount: 100 }]);
   });
 });

@@ -11,7 +11,7 @@ import { DecimalInput } from '../components/DecimalInput';
 
 export interface Integration {
   id: string;
-  platform: PlatformKey | 'meta';
+  platform: PlatformKey | 'meta' | 'mercadopago';
   name: string;
   token: string;
   enabled: boolean;
@@ -121,7 +121,7 @@ function Connections() {
   const { list, secrets, reload, error } = useIntegrations();
   const [platform, setPlatform] = useState<PlatformKey>('hotmart');
   const [busy, setBusy] = useState(false);
-  const sales = list.filter((i) => i.platform !== 'meta');
+  const sales = list.filter((i) => SALES_PLATFORMS.includes(i.platform as PlatformKey));
   const meta = list.filter((i) => i.platform === 'meta');
 
   const create = async (p: PlatformKey | 'meta') => {
@@ -209,7 +209,7 @@ function CopyField({ value }: { value: string }) {
   );
 }
 
-function SecretField(p: { integId: string; label: string; has: boolean; kind: 'secret' | 'access_token'; onSaved: () => void }) {
+export function SecretField(p: { integId: string; label: string; has: boolean; kind: 'secret' | 'access_token'; onSaved: () => void }) {
   const { integId, label, has, kind } = p;
   const [value, setValue] = useState('');
   const [msg, setMsg] = useState('');

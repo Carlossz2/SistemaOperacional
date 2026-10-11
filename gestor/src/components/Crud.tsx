@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import type { Collection, Database } from '../lib/types';
 import { defaultRate, remove, uid, upsert, useDb } from '../lib/store';
 import { today } from '../lib/dates';
-import { decimalInput, parseDecimal } from '../lib/format';
+import { decimalInput, parseDecimal, shortDate } from '../lib/format';
 import { download, toCsv } from '../lib/io';
 import { FilterBar, usePeriod } from '../lib/period';
 import { Icon } from './Icon';
@@ -58,18 +58,20 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
   const { period } = usePeriod();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [q, setQ] = useState('');
+  const [showAll, setShowAll] = useState(false);
 
   const all = db[props.collection] as unknown as T[];
-  const items = useMemo(() => {
+  const { items, hidden } = useMemo(() => {
     let list = all;
-    if (props.byPeriod) list = list.filter((x) => !x.date || (x.date >= period.from && x.date <= period.to));
     if (props.filter) list = list.filter(props.filter);
     if (q.trim() && props.search) {
       const needle = q.trim().toLowerCase();
       list = list.filter((x) => props.search!(x, db).toLowerCase().includes(needle));
     }
-    return [...list].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [all, props.byPeriod, props.search, props.filter, period, q, db]);
+    // lançamentos fora do período ficam escondidos, mas nunca em silêncio (ver aviso abaixo da tabela)
+    const inPeriod = props.byPeriod && !showAll ? list.filter((x) => !x.date || (x.date >= period.from && x.date <= period.to)) : list;
+    return { items: [...inPeriod].sort((a, b) => (b.date || '').localeCompare(a.date || '')), hidden: list.length - inPeriod.length };
+  }, [all, props.byPeriod, props.search, props.filter, period, q, db, showAll]);
 
   const open = (d: Draft) => setDraft(d);
   const exportCsv = () => {
@@ -174,8 +176,25 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
               </tfoot>
             )}
           </table>
-          {!items.length && <div className="empty">{props.emptyHint ?? 'Nenhum registro no período.'}</div>}
+          {!items.length && !hidden && <div className="empty">{props.emptyHint ?? 'Nenhum registro no período.'}</div>}
         </div>
+        {props.byPeriod && (hidden > 0 || showAll) && (
+          <div className="period-note">
+            {showAll ? (
+              <>
+                <span>Mostrando todos os lançamentos, de qualquer data.</span>
+                <button className="link" onClick={() => setShowAll(false)}>Voltar ao período selecionado</button>
+              </>
+            ) : (
+              <>
+                <span>
+                  {hidden} lançamento(s) fora do período selecionado ({shortDate(period.from)} – {shortDate(period.to)}).
+                </span>
+                <button className="link" onClick={() => setShowAll(true)}>Mostrar todos</button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {draft && (
