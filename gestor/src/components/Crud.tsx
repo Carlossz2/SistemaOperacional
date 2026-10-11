@@ -47,6 +47,8 @@ interface Props<T extends { id: string }> {
   blockDelete?: (item: T, db: Database) => string | null;
   /** Registro somente leitura (ex.: venda recebida por webhook): retorna o motivo */
   locked?: (item: T) => string | null;
+  /** Conteúdo entre o filtro de período e a tabela (ex.: painel de performance) */
+  header?: ReactNode;
 }
 
 export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
@@ -93,6 +95,7 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
       </div>
 
       {props.byPeriod && <FilterBar showDimensions={false} />}
+      {props.header}
 
       <div className="card">
         {props.search && (

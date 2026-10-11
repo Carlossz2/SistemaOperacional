@@ -44,6 +44,7 @@ export function BreakdownTable({ rows, dim, currency, nameOf = (k) => k, limit, 
             {hasAds && <th className={hasRevenue ? 'num' : ''}>Ads</th>}
             {hasRevenue && hasAds && <th className="num">ROAS</th>}
             {hasRevenue && hasAds && <th className="num">CPA</th>}
+            {hasRevenue && hasAds && full && <th className="num">ROI</th>}
             {hasRevenue && full && <th className="num">Reemb.</th>}
             {hasRevenue && <th className="num">{dim === 'productId' ? 'Lucro' : 'Contribuição'}</th>}
             {hasRevenue && full && <th className="num">Margem</th>}
@@ -79,6 +80,7 @@ export function BreakdownTable({ rows, dim, currency, nameOf = (k) => k, limit, 
                     {overCpa ? ' ⚠' : ''}
                   </td>
                 )}
+                {hasRevenue && hasAds && full && <td className={`num ${r.roi !== null && r.roi < 0 ? 'neg' : ''}`}>{pct(r.roi)}</td>}
                 {hasRevenue && full && <td className="num">{pct(r.refundRate)}</td>}
                 {hasRevenue && <td className={`num ${r.profit < 0 ? 'neg' : 'pos'}`}>{m(r.profit)}</td>}
                 {hasRevenue && full && <td className="num">{pct(r.margin)}</td>}

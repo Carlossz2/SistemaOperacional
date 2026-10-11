@@ -99,8 +99,9 @@ Em **Integrações → Conexões**, escolha a plataforma e clique em **Adicionar
 
 1. Em business.facebook.com → *Configurações do negócio → Usuários do sistema*, crie um usuário do sistema (Admin) e atribua suas contas de anúncio.
 2. *Gerar token* → escolha um app do tipo Empresa (crie em developers.facebook.com se não tiver) → permissão **ads_read**.
-3. No Gestor: **Integrações → Meta Ads → Conectar**, cole o token, informe as contas (`act_123…`) e crie regras **campanha → produto** (ex.: campanhas com "KETO" vão para o produto Keto).
+3. No Gestor: **Tráfego pago → Conectar Meta Ads** (ou *Integrações → Meta Ads*), cole o token, informe as contas (`act_123…`) e crie regras **campanha → produto** (ex.: campanhas com "KETO" vão para o produto Keto).
 4. **Sincronizar agora** (escolha até 12 meses para trazer o histórico). Depois disso o gasto é atualizado **de hora em hora** automaticamente.
+5. A aba **Tráfego pago** cruza sozinha o gasto com as vendas das plataformas: investido, faturamento, CPA, ROAS, lucro e ROI do período, por produto e por campanha (impressões, cliques, CTR, CPC, CPM e compras do pixel). Gasto sem produto aparece em destaque: crie a regra para ele entrar no lucro do produto certo.
 
 ## 9. Backup e longo prazo
 

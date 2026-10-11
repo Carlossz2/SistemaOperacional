@@ -9,7 +9,7 @@ import { today, addDays } from '../lib/dates';
 import { Icon } from '../components/Icon';
 import { DecimalInput } from '../components/DecimalInput';
 
-interface Integration {
+export interface Integration {
   id: string;
   platform: PlatformKey | 'meta';
   name: string;
@@ -22,20 +22,21 @@ interface Integration {
   last_sync_status: string | null;
   created_at: string;
 }
-interface SecretStatus {
+export interface SecretStatus {
   integration_id: string;
   has_secret: boolean;
   has_access_token: boolean;
 }
 
 const SALES_PLATFORMS: PlatformKey[] = ['hotmart', 'cakto', 'lastlink', 'ggcheckout', 'perfectpay', 'generic'];
-const fmtDateTime = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+export const fmtDateTime = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 const webhookUrl = (token: string) => `${getCloudConfig()?.url ?? ''}/functions/v1/webhook/${token}`;
 
-function useIntegrations() {
+export function useIntegrations() {
   const [list, setList] = useState<Integration[]>([]);
   const [secrets, setSecrets] = useState<Record<string, SecretStatus>>({});
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
   const reload = useCallback(async () => {
     const sb = supabase();
     const [{ data, error: e1 }, { data: st }] = await Promise.all([
@@ -45,11 +46,12 @@ function useIntegrations() {
     if (e1) setError(e1.message);
     setList((data ?? []) as Integration[]);
     setSecrets(Object.fromEntries(((st ?? []) as SecretStatus[]).map((s) => [s.integration_id, s])));
+    setLoaded(true);
   }, []);
   useEffect(() => {
     void reload();
   }, [reload]);
-  return { list, secrets, reload, error };
+  return { list, secrets, reload, error, loaded };
 }
 
 export function Integrations() {
@@ -196,7 +198,8 @@ function CopyField({ value }: { value: string }) {
   );
 }
 
-function SecretField({ integId, label, has, kind }: { integId: string; label: string; has: boolean; kind: 'secret' | 'access_token' }) {
+function SecretField(p: { integId: string; label: string; has: boolean; kind: 'secret' | 'access_token'; onSaved: () => void }) {
+  const { integId, label, has, kind } = p;
   const [value, setValue] = useState('');
   const [msg, setMsg] = useState('');
   const save = async (v: string) => {
@@ -207,6 +210,7 @@ function SecretField({ integId, label, has, kind }: { integId: string; label: st
     });
     setMsg(error ? error.message : v ? 'Salvo com segurança' : 'Removido');
     setValue('');
+    if (!error) p.onSaved();
   };
   return (
     <label className="field">
@@ -259,7 +263,7 @@ function SalesIntegrationCard({ integ, secret, onChange }: { integ: Integration;
           URL do webhook (cole na {adapter.label})
           <CopyField value={webhookUrl(integ.token)} />
         </label>
-        <SecretField integId={integ.id} kind="secret" label={adapter.help.secretLabel} has={Boolean(secret?.has_secret)} />
+        <SecretField integId={integ.id} kind="secret" label={adapter.help.secretLabel} has={Boolean(secret?.has_secret)} onSaved={onChange} />
         <p className="muted small" style={{ margin: 0 }}>
           <b>Onde configurar:</b> {adapter.help.where}. <b>Eventos:</b> {adapter.help.events.join(', ')}.
         </p>
@@ -384,7 +388,7 @@ function GenericMappingEditor({ integ, onSave }: { integ: Integration; onSave: (
   );
 }
 
-function MetaCard({ integ, secret, onChange }: { integ: Integration; secret?: SecretStatus; onChange: () => void }) {
+export function MetaCard({ integ, secret, onChange }: { integ: Integration; secret?: SecretStatus; onChange: () => void }) {
   const db = useDb();
   const cfg = integ.config as { accountIds?: string[]; rules?: { contains: string; productId: string }[]; byCountry?: boolean; apiVersion?: string };
   const [accounts, setAccounts] = useState((cfg.accountIds ?? []).join('\n'));
@@ -424,7 +428,7 @@ function MetaCard({ integ, secret, onChange }: { integ: Integration; secret?: Se
 
   return (
     <div className="form-grid">
-      <SecretField integId={integ.id} kind="access_token" label="Token de acesso (permissão ads_read)" has={Boolean(secret?.has_access_token)} />
+      <SecretField integId={integ.id} kind="access_token" label="Token de acesso (permissão ads_read)" has={Boolean(secret?.has_access_token)} onSaved={onChange} />
       <label className="field">
         Contas de anúncio (uma por linha, ex.: act_1234567890)
         <textarea rows={3} value={accounts} onChange={(e) => setAccounts(e.target.value)} onBlur={saveConfig} />

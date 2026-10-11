@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breakdown, capitalSummary, computeTotals, expandExpenses, timeSeries } from './metrics';
+import { breakdown, campaignBreakdown, capitalSummary, computeTotals, expandExpenses, timeSeries } from './metrics';
 import { emptyDb } from './store';
 import { previousPeriod, resolvePreset } from './dates';
 import type { Database, Expense } from './types';
@@ -103,5 +103,22 @@ describe('períodos', () => {
   it('mês passado e período anterior', () => {
     expect(resolvePreset('lastMonth', '2026-03-15')).toMatchObject({ from: '2026-02-01', to: '2026-02-28' });
     expect(previousPeriod({ preset: '7d', from: '2026-03-09', to: '2026-03-15' })).toMatchObject({ from: '2026-03-02', to: '2026-03-08' });
+  });
+});
+
+describe('campaignBreakdown', () => {
+  it('soma gasto e métricas da Meta por campanha e calcula CTR, CPC e CPA do pixel', () => {
+    const d = db();
+    d.ads.push(
+      { id: 'a3', date: '2026-01-10', productId: 'p1', source: 'Meta Ads', campaign: 'KETO 01', country: 'BR', currency: 'USD', rate: 5, amount: 20, origin: 'meta', metrics: { impressions: 1000, clicks: 50, purchases: 2 } },
+      { id: 'a4', date: '2026-01-11', productId: 'p1', source: 'Meta Ads', campaign: 'KETO 01', country: 'MX', currency: 'USD', rate: 5, amount: 20, origin: 'meta', metrics: { impressions: 1000, clicks: 50, purchases: 2 } },
+    );
+    const rows = campaignBreakdown(d, { from: '2026-01-01', to: '2026-01-31' });
+    const keto = rows.find((r) => r.campaign === 'KETO 01')!;
+    expect(rows[0]).toBe(rows.find((r) => r.spend === 400));
+    expect(keto).toMatchObject({ spend: 200, impressions: 2000, clicks: 100, purchases: 4, cpa: 50, cpc: 2 });
+    expect(keto.ctr).toBeCloseTo(0.05);
+    expect(keto.cpm).toBeCloseTo(100);
+    expect(rows.find((r) => r.campaign === '(sem campanha)' && r.source === 'Google Ads')?.cpa).toBeNull();
   });
 });
