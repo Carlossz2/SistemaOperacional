@@ -106,13 +106,23 @@ Em **Receitas → Conectar plataforma** (ou *Integrações → Conexões*), esco
 5. A aba **Tráfego pago** cruza sozinha o gasto com as vendas das plataformas: investido, faturamento, CPA, ROAS, lucro e ROI do período, por produto e por campanha (impressões, cliques, CTR, CPC, CPM e compras do pixel). Gasto sem produto aparece em destaque: crie a regra para ele entrar no lucro do produto certo.
 6. **Filtros e vendas por campanha:** no topo do painel, filtre por **produto** e por **campanha** (ou clique numa campanha na tabela). O botão **Venda manual** lança uma venda já com o produto e a campanha do filtro. Vendas lançadas com o nome da campanha entram no lucro, ROAS, CPA e ROI dela. As vendas por webhook não trazem a campanha, então contam no produto, não na campanha.
 
-## 9. Backup e longo prazo
+## 9. Conectar a conta Mercado Pago (banco da empresa)
+
+1. Em **mercadopago.com.br/developers/panel/app** (logado na conta da empresa), crie uma aplicação (ex.: CADIGITAL).
+2. Abra **Credenciais de produção** e copie o **Access Token** (`APP_USR-…`). Ele dá acesso à conta: cole **somente** no sistema, nunca em chat ou e-mail.
+3. No sistema: **Caixa & capital → Conectar Mercado Pago**, cole o token e salve.
+4. Escolha o período (até 12 meses) e clique em **Sincronizar agora**. O Mercado Pago leva alguns minutos para gerar o extrato; ele entra sozinho.
+5. Daí em diante o extrato é atualizado **de hora em hora**: saldo, entradas, saídas (Pix e transferências enviados, saques, reembolsos, tarifas) e o extrato completo do período.
+
+O extrato vem do *relatório de liberações* do Mercado Pago. Na primeira sincronização, confira se os valores batem com o app do banco; se algo vier diferente, me avise.
+
+## 10. Backup e longo prazo
 
 - O plano gratuito do Supabase **não guarda backups automáticos** e pausa projetos sem uso por 7 dias. Para dados financeiros reais, recomendo o **plano Pro** (backups diários).
 - Independente do plano: **Configurações → Exportar backup** (inclui as vendas individuais) e guarde o arquivo em local seguro, ao menos 1× por semana.
 - Os eventos brutos dos webhooks nunca são apagados: são a prova do que cada plataforma enviou.
 
-## 10. Atualizações do sistema
+## 11. Atualizações do sistema
 
 Toda melhoria publicada no GitHub atualiza o app sozinho — inclusive o app instalado (PWA) no computador ou celular, que baixa a versão nova e recarrega quando você não estiver com um formulário aberto. A versão atual aparece no rodapé de *Configurações*.
 

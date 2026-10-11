@@ -166,6 +166,43 @@ Deno.test({ name: 'Meta: sincroniza gastos com paginação, regras e cotação; 
   assertEquals(r2.status, 401);
 }});
 
+Deno.test({ name: 'Mercado Pago: pede relatório, importa quando fica pronto, sem duplicar; app só lê', ...opts, fn: async () => {
+  const { data: bank, error } = await sb.from('integrations').insert({ platform: 'mercadopago', name: 'Mercado Pago', config: {} }).select().single();
+  assert(!error, error?.message);
+  const call = (body: Record<string, unknown>) => post('bank-sync', { integrationId: bank!.id, ...body }, { Authorization: `Bearer ${jwt}` });
+  // sem token
+  let body = await (await call({})).json();
+  assert(!body.ok && body.results[0].message.includes('Access Token'), JSON.stringify(body));
+  // token inválido
+  await sb.rpc('set_integration_secret', { p_integration_id: bank!.id, p_access_token: 'mp-ruim' });
+  body = await (await call({})).json();
+  assert(!body.ok && body.results[0].message.includes('inválido'), JSON.stringify(body));
+  // token certo: pede o relatório (ainda gerando)
+  await sb.rpc('set_integration_secret', { p_integration_id: bank!.id, p_access_token: 'mp-bom' });
+  body = await (await call({ since: '2026-10-01', until: '2026-10-07' })).json();
+  assert(body.ok && body.results[0].message.includes('pedido'), JSON.stringify(body));
+  assertEquals((await sb.from('bank_movements').select('id')).data?.length, 0);
+  // fica pronto e entra
+  await new Promise((r) => setTimeout(r, 1700));
+  body = await (await call({ action: 'import' })).json();
+  assert(body.ok && body.results[0].message.includes('3 movimentação'), JSON.stringify(body));
+  const { data: mov } = await sb.from('bank_movements').select('*').order('date');
+  assertEquals(mov!.map((m) => [m.date, m.direction, Number(m.amount)]), [['2026-10-05', 'in', 188.15], ['2026-10-06', 'out', 500], ['2026-10-07', 'out', 97]]);
+  assertEquals(Number(mov![2].balance), 591.15);
+  // o mesmo relatório não é importado de novo; outro relatório com as mesmas linhas não duplica
+  await call({ since: '2026-10-01', until: '2026-10-07' });
+  await new Promise((r) => setTimeout(r, 1700));
+  await call({ action: 'import' });
+  assertEquals((await sb.from('bank_movements').select('id')).data?.length, 3);
+  // o app não altera o extrato
+  await sb.from('bank_movements').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  const ins = await sb.from('bank_movements').insert({ user_id: userId, external_id: 'x', date: '2026-10-01', direction: 'in', amount: 1 });
+  assert(ins.error, 'app não pode inserir no extrato');
+  assertEquals((await sb.from('bank_movements').select('id')).data?.length, 3);
+  // sem login
+  assertEquals((await post('bank-sync', { integrationId: bank!.id }, { Authorization: 'Bearer token-falso' })).status, 401);
+}});
+
 Deno.test({ name: 'agendador: segredo interno sincroniza e tenta de novo webhooks com erro', ...opts, fn: async () => {
   const { rows } = await db.query("select value from private.app_config where key = 'cron_secret'");
   const secret = rows[0].value;
@@ -175,6 +212,7 @@ Deno.test({ name: 'agendador: segredo interno sincroniza e tenta de novo webhook
   const body = await res.json();
   assertEquals(res.status, 200, JSON.stringify(body));
   assert(body.results.length >= 1 && body.results.every((r: { ok: boolean }) => r.ok), JSON.stringify(body));
+  assert(body.bank.length === 1 && body.bank[0].ok, 'agendador também atualiza o Mercado Pago: ' + JSON.stringify(body.bank));
   await db.end();
 }});
 

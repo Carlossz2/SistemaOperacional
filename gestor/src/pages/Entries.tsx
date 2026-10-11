@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Crud, EntryForm, type Field } from '../components/Crud';
+import { BankPanel } from '../components/BankPanel';
 import { RevenuePanel } from '../components/RevenuePanel';
 import { TrafficPanel, type TrafficFilter } from '../components/TrafficPanel';
 import type { AdSpend, CapitalMove, Database, Expense, Product, Sale } from '../lib/types';
@@ -255,9 +256,10 @@ export function CapitalPage() {
   return (
     <Crud<CapitalMove>
       title="Caixa & capital"
-      subtitle="Aportes de sócios, retiradas (pró-labore, distribuição de lucros) e investimentos em ativos. Não entram no lucro, mas sim no caixa."
+      subtitle="Saldo e extrato da conta Mercado Pago (automático) e o capital da empresa: aportes, retiradas (pró-labore, lucros) e investimentos. Capital não entra no lucro, só no caixa."
       collection="capital"
       byPeriod
+      header={<BankPanel />}
       fields={[
         { key: 'date', label: 'Data', type: 'date', required: true },
         {

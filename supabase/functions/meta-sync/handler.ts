@@ -3,8 +3,10 @@
 // Quem chama:
 //  * o app (usuário logado): { integrationId?, since?, until? } — padrão últimos 7 dias
 //  * o agendador do banco (pg_cron, de hora em hora) com o cabeçalho x-cron-secret — últimos 3 dias
-//    de todas as integrações ativas; também tenta de novo webhooks que falharam.
+//    de todas as integrações ativas; também tenta de novo webhooks que falharam e atualiza o
+//    extrato do Mercado Pago (bankCron).
 import { insightsUrl, type InsightRow, type MetaConfig, metaError, normalizeAccount, toAdRow, type AdRow } from '../_shared/meta.ts';
+import { bankCron } from '../_shared/bank.ts';
 import { admin, type Admin, CORS, functionsUrl, FxCache, json, reprocessEvents, userFromRequest, userSettings } from '../_shared/server.ts';
 import { dayIn, safeEqual } from '../_shared/util.ts';
 
@@ -104,7 +106,9 @@ export async function handler(req: Request): Promise<Response> {
     const { data } = await sb.from('integrations').select('id, user_id, enabled, default_product_id, config').eq('platform', 'meta').eq('enabled', true);
     const results = await runFor(sb, (data ?? []) as MetaIntegration[], shift(today, -2), today);
     const retried = await reprocessEvents(sb, { statuses: ['error'], maxAttempts: 5, sinceHours: 72 });
-    return json({ ok: true, results, retried });
+    // o mesmo agendador mantém o extrato do Mercado Pago em dia
+    const bank = await bankCron(sb).catch((err) => [{ id: '', ok: false, message: (err as Error).message }]);
+    return json({ ok: true, results, retried, bank });
   }
 
   const userId = await userFromRequest(sb, req);
