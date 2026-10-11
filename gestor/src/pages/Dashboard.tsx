@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDb } from '../lib/store';
 import { FilterBar, FilterNote, usePeriod } from '../lib/period';
@@ -11,6 +11,7 @@ import { DonutChart, FlowChart, ProfitChart } from '../components/Charts';
 import { BreakdownTable } from '../components/BreakdownTable';
 import { Transactions } from '../components/Transactions';
 import { Icon } from '../components/Icon';
+import { RefreshButton } from '../components/RefreshButton';
 
 const RANGES: { key: PresetKey; label: string }[] = [
   { key: '7d', label: '7D' },
@@ -26,6 +27,7 @@ const totalCosts = (t: Totals) => t.fees + t.refunds + t.ads + t.expenses + t.ta
 export function Dashboard() {
   const db = useDb();
   const { period, productId, country, setPreset } = usePeriod();
+  const [refreshed, setRefreshed] = useState<{ ok: boolean; message: string; at: Date } | null>(null);
   const cur = db.settings.baseCurrency;
   const f = useMemo<Filter>(
     () => ({ from: period.from, to: period.to, productId: productId || undefined, country: country || undefined }),
@@ -79,9 +81,15 @@ export function Dashboard() {
           <p className="muted">
             {db.settings.businessName} · {shortDate(period.from)} – {shortDate(period.to)} · valores em {cur}
           </p>
+          {refreshed && (
+            <p className={`small ${refreshed.ok ? 'muted' : 'form-error'}`} style={{ margin: '4px 0 0' }} role="status">
+              Atualizado às {refreshed.at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {refreshed.message}
+            </p>
+          )}
         </div>
         <div className="head-actions">
           <FilterBar inline />
+          <RefreshButton onResult={setRefreshed} />
           <button onClick={exportCsv} disabled={empty}>
             <Icon name="upload" size={15} /> Exportar
           </button>

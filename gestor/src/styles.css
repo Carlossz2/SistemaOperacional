@@ -429,3 +429,8 @@ td.pos, .pos-text { color: var(--good-text); }
 .int-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
 .badge i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+/* ícone girando enquanto atualiza */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin svg { animation: spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .spin svg { animation: none; } }
