@@ -1,5 +1,5 @@
 import type { AdSpend, CapitalMove, Database, Expense, Sale } from './types';
-import { addMonths, daysBetween, monthOf, monthsBetween } from './dates';
+import { addDays, addMonths, daysBetween, monthOf, monthsBetween, weekStart } from './dates';
 
 export interface Filter {
   from: string;
@@ -319,4 +319,54 @@ export function campaignNames(db: Database, productId?: string): string[] {
   const names = new Set<string>();
   for (const x of [...db.ads, ...db.sales]) if (campaignOf(x) && (!productId || x.productId === productId)) names.add(campaignOf(x));
   return [...names].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+export interface WeekRow {
+  /** Segunda-feira */
+  from: string;
+  /** Domingo (ou hoje, na semana em andamento) */
+  to: string;
+  current: boolean;
+  totals: Totals;
+  /** Tráfego + despesas operacionais */
+  spend: number;
+  /** Taxas + reembolsos + impostos */
+  deductions: number;
+}
+
+const weekRow = (db: Database, from: string, to: string, current: boolean, f: Omit<Filter, 'from' | 'to'>): WeekRow => {
+  const totals = computeTotals(db, { ...f, from, to });
+  return { from, to, current, totals, spend: totals.ads + totals.expenses, deductions: totals.fees + totals.refunds + totals.tax };
+};
+
+/** Últimas `count` semanas (segunda a domingo), da mais recente para a mais antiga. A semana atual vai até `ref`. */
+export function weeklySummary(db: Database, count: number, ref: string, f: Omit<Filter, 'from' | 'to'> = {}): WeekRow[] {
+  const out: WeekRow[] = [];
+  const first = weekStart(ref);
+  for (let i = 0; i < count; i++) {
+    const from = addDays(first, -7 * i);
+    out.push(weekRow(db, from, i === 0 ? ref : addDays(from, 6), i === 0, f));
+  }
+  return out;
+}
+
+/** Semana atual até `ref` × semana passada até o mesmo dia da semana (comparação justa com a semana em andamento). */
+export function weekToDate(db: Database, ref: string, f: Omit<Filter, 'from' | 'to'> = {}) {
+  const from = weekStart(ref);
+  const prevFrom = addDays(from, -7);
+  return { current: weekRow(db, from, ref, true, f), previous: weekRow(db, prevFrom, addDays(ref, -7), false, f) };
+}
+
+/** Para onde foi o dinheiro no período: tráfego por fonte e despesas por categoria (moeda base). */
+export function spendBreakdown(db: Database, f: Filter) {
+  const { ads, expenses } = filtered(db, f);
+  const group = <T,>(xs: T[], key: (x: T) => string, val: (x: T) => number) => {
+    const m = new Map<string, number>();
+    for (const x of xs) m.set(key(x), (m.get(key(x)) ?? 0) + val(x));
+    return [...m.entries()].map(([label, amount]) => ({ label, amount })).sort((a, b) => b.amount - a.amount);
+  };
+  return {
+    ads: group(ads, (a) => a.source || 'Outros', adBase),
+    expenses: group(expenses, (o) => o.expense.category || 'Outros', (o) => o.amount),
+  };
 }

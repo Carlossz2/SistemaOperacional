@@ -10,10 +10,12 @@ import { Integrations } from './pages/Integrations';
 import { Dashboard } from './pages/Dashboard';
 import { AdsPage, CapitalPage, ExpensesPage, ProductsPage, SalesPage } from './pages/Entries';
 import { Reports } from './pages/Reports';
+import { Weekly } from './pages/Weekly';
 import { Settings } from './pages/Settings';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/semanal', label: 'Semana a semana', icon: 'calendar' },
   { to: '/receitas', label: 'Receitas', icon: 'sales' },
   { to: '/trafego', label: 'Tráfego pago', icon: 'ads' },
   { to: '/despesas', label: 'Despesas', icon: 'expenses' },
@@ -123,6 +125,7 @@ function Shell() {
             <Route path="/caixa" element={<CapitalPage />} />
             <Route path="/produtos" element={<ProductsPage />} />
             <Route path="/relatorios" element={<Reports />} />
+            <Route path="/semanal" element={<Weekly />} />
             <Route path="/configuracoes" element={<Settings />} />
             <Route path="/integracoes" element={<Integrations />} />
             <Route path="*" element={<Dashboard />} />
