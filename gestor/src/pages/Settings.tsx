@@ -145,13 +145,31 @@ export function Settings() {
               Moeda base dos relatórios
               <input value={s.baseCurrency} disabled />
             </label>
+          </div>
+          <h3 className="section-title" style={{ marginTop: 16 }}>Impostos</h3>
+          <div className="form-grid">
             <label className="field">
-              Imposto estimado (% sobre receita líquida)
+              Imposto do CNPJ (%)
               <DecimalInput value={s.taxRate} onChange={(taxRate) => updateSettings({ taxRate: Math.min(taxRate, 100) })} />
+            </label>
+            <label className="field">
+              Calcular o imposto do CNPJ sobre
+              <select value={s.taxBase ?? 'net'} onChange={(e) => updateSettings({ taxBase: e.target.value as 'net' | 'gross' })}>
+                <option value="net">Receita líquida (bruto − taxas − reembolsos)</option>
+                <option value="gross">Faturamento bruto</option>
+              </select>
+            </label>
+            <label className="field">
+              Impostos da Meta sobre anúncios (%)
+              <DecimalInput value={s.adTaxRate ?? 0} onChange={(adTaxRate) => updateSettings({ adTaxRate: Math.min(adTaxRate, 100) })} />
             </label>
           </div>
           <p className="muted small">
-            Ex.: Simples Nacional Anexo III/V, ou 0 se você lança os impostos pagos como despesa (categoria “Impostos (pagos)”).
+            <b>CNPJ:</b> a alíquota do seu regime (ex.: Simples Nacional). Use 0 se você lança os impostos pagos como despesa (categoria “Impostos (pagos)”).
+            <br />
+            <b>Meta:</b> no Brasil a Meta cobra impostos além do valor dos anúncios (PIS/COFINS e ISS; e IOF se o cartão for internacional). Esse valor não vem
+            no gasto que a Meta informa. Confira o percentual na sua fatura da Meta (Faturamento → Atividade de pagamento) e informe aqui.
+            Vale para todo gasto da Meta, sincronizado ou lançado à mão.
           </p>
         </div>
 

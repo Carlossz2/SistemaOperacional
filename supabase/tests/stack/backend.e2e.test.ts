@@ -166,6 +166,38 @@ Deno.test({ name: 'Meta: sincroniza gastos com paginação, regras e cotação; 
   assertEquals(r2.status, 401);
 }});
 
+Deno.test({ name: 'planilha: importa histórico sem duplicar com o webhook e sem desfazer reembolso', ...opts, fn: async () => {
+  const call = (body: unknown, auth = `Bearer ${jwt}`) => post('import-sales', body, { Authorization: auth });
+  const item = (externalId: string, extra: Record<string, unknown> = {}) => ({
+    externalId, status: 'approved', occurredAt: '2026-10-02T15:00:00Z', approvedAt: '2026-10-02T15:00:00Z',
+    productExternalId: '', productName: 'Método Reconquista', quantity: 1, currency: 'BRL', gross: 197, fees: null, net: 177.3,
+    country: 'BR', buyerEmail: null, buyerName: null, paymentMethod: null, rawStatus: 'Aprovado', ...extra,
+  });
+  const before = (await sb.from('transactions').select('id').eq('platform', 'hotmart')).data!.length;
+  let res = await call({ platform: 'hotmart', items: [item('HP1234567890'), item('PLAN-1'), item('PLAN-2', { currency: 'USD', gross: 30, net: null, fees: 3 }), { externalId: 'ruim', status: 'x' }] });
+  let body = await res.json();
+  assertEquals(res.status, 200, JSON.stringify(body));
+  assertEquals([body.imported, body.failed.length], [3, 1], JSON.stringify(body));
+  const { data: tx } = await sb.from('transactions').select('external_id, status, fees, product_id').eq('platform', 'hotmart').order('external_id');
+  assertEquals(tx!.length, before + 2, 'venda que já veio por webhook não duplica');
+  assertEquals(tx!.find((t) => t.external_id === 'HP1234567890')!.status, 'refunded', 'importar "aprovada" não desfaz reembolso');
+  assertEquals(Number(tx!.find((t) => t.external_id === 'PLAN-1')!.fees), 19.7, 'taxa derivada do líquido');
+  const { data: prods } = await sb.from('products').select('id').ilike('name', 'Método Reconquista');
+  assertEquals(prods!.length, 1, 'produto reaproveitado pelo nome');
+  // importar de novo não duplica
+  res = await call({ platform: 'hotmart', items: [item('PLAN-1'), item('PLAN-2', { currency: 'USD', gross: 30, net: null, fees: 3 })] });
+  body = await res.json();
+  assertEquals(body.imported, 2);
+  assertEquals((await sb.from('transactions').select('id').eq('platform', 'hotmart')).data!.length, before + 2);
+  // consolidado em Receitas (origem automática)
+  const { data: sales } = await sb.from('sales').select('date, currency, quantity').eq('origin', 'auto').eq('date', '2026-10-02');
+  assert(sales!.length >= 1, 'vendas importadas entram em Receitas');
+  // proteções
+  assertEquals((await call({ platform: 'hotmart', items: [item('X')] }, 'Bearer token-falso')).status, 401);
+  assertEquals((await call({ platform: 'nada', items: [] })).status, 400);
+  assertEquals((await call({ platform: 'hotmart', items: Array.from({ length: 501 }, (_, i) => item('L' + i)) })).status, 400);
+}});
+
 Deno.test({ name: 'Mercado Pago: pede relatório, importa quando fica pronto, sem duplicar; app só lê', ...opts, fn: async () => {
   const { data: bank, error } = await sb.from('integrations').insert({ platform: 'mercadopago', name: 'Mercado Pago', config: {} }).select().single();
   assert(!error, error?.message);

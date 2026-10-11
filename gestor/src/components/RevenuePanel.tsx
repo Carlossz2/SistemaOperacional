@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ADAPTERS, type PlatformKey } from '../../../supabase/functions/_shared/adapters.ts';
 import { BreakdownTable } from './BreakdownTable';
+import { ImportSales } from './ImportSales';
 import { Icon } from './Icon';
 import { MiniKpi } from './Kpi';
 import { fmtDateTime, ReceivedSales, SALES_PLATFORMS, SalesIntegrationCard, useIntegrations, type Integration, type SecretStatus } from '../pages/Integrations';
@@ -52,6 +53,7 @@ function Platforms() {
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, number>>({});
+  const [importing, setImporting] = useState(false);
   const sales = list.filter((i) => SALES_PLATFORMS.includes(i.platform as PlatformKey));
 
   const loadErrors = useCallback(async () => {
@@ -107,13 +109,17 @@ function Platforms() {
           <button className="primary" disabled={busy} onClick={add}>
             <Icon name="plus" size={15} /> Conectar plataforma
           </button>
+          <button onClick={() => setImporting(true)} title="Traz o histórico de vendas a partir do relatório exportado da plataforma">
+            <Icon name="upload" size={15} /> Importar planilha
+          </button>
         </div>
       </div>
+      {importing && <ImportSales onClose={() => setImporting(false)} defaultPlatform={sales[0]?.platform as PlatformKey | undefined} />}
       {error && <p className="form-error">{error}</p>}
       {!sales.length ? (
         <p className="muted small" style={{ margin: 0 }}>
           Conecte cada plataforma uma vez: o sistema gera uma URL de webhook para colar no painel dela. A partir daí toda venda aprovada,
-          reembolso e chargeback entra aqui sozinho, na hora, já com taxas, país e produto.
+          reembolso e chargeback entra aqui sozinho, na hora, já com taxas, país e produto. Vendas anteriores à conexão: use "Importar planilha".
         </p>
       ) : (
         <div className="table-wrap">

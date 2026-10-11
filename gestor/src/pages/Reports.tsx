@@ -18,7 +18,8 @@ const DRE: Line[] = [
   { label: '(=) Receita líquida', get: (t) => t.net, kind: 'money', strong: true },
   { label: '(−) Tráfego pago', get: (t) => t.ads, kind: 'money', sign: -1 },
   { label: '(−) Despesas operacionais', get: (t) => t.expenses, kind: 'money', sign: -1 },
-  { label: '(−) Impostos estimados', get: (t) => t.tax, kind: 'money', sign: -1 },
+  { label: '(−) Impostos da Meta (sobre anúncios)', get: (t) => t.adTax, kind: 'money', sign: -1 },
+  { label: '(−) Imposto do CNPJ', get: (t) => t.taxCompany, kind: 'money', sign: -1 },
   { label: '(=) Lucro líquido', get: (t) => t.profit, kind: 'money', strong: true },
   { label: 'Margem líquida', get: (t) => t.margin, kind: 'pct' },
   { label: 'ROAS', get: (t) => t.roas, kind: 'x' },
@@ -61,7 +62,7 @@ export function Reports() {
     const out = rows.map((r) => ({
       [DIM_LABEL[dim]]: nameOf(r.key),
       Vendas: r.units, Bruto: r.gross, Taxas: r.fees, Reembolsos: r.refunds, Liquido: r.net,
-      Ads: r.ads, Despesas: r.expenses, Impostos: r.tax, Lucro: r.profit, ROAS: r.roas ?? '', CPA: r.cpa ?? '',
+      Ads: r.ads, 'Impostos Meta': r.adTax, Despesas: r.expenses, 'Imposto CNPJ': r.taxCompany, Lucro: r.profit, ROAS: r.roas ?? '', CPA: r.cpa ?? '',
     }));
     download(`relatorio-${dim}-${period.from}-${period.to}.csv`, toCsv(out), 'text/csv;charset=utf-8');
   };

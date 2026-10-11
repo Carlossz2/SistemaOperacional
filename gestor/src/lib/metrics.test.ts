@@ -170,3 +170,34 @@ describe('semana a semana', () => {
     expect(b.expenses).toEqual([{ label: 'Ferramentas / SaaS', amount: 100 }]);
   });
 });
+
+describe('impostos: CNPJ e Meta', () => {
+  it('imposto da Meta incide só sobre o gasto da Meta e entra no lucro', () => {
+    const d = db(); // ads: Meta 400 (BRL) e Google 50 USD (250)
+    d.settings.adTaxRate = 12.15;
+    const t = computeTotals(d, { from: '2026-01-01', to: '2026-01-31' });
+    expect(t.adTax).toBeCloseTo(400 * 0.1215);
+    expect(t.taxCompany).toBe(125); // 10% do líquido (1250)
+    expect(t.tax).toBeCloseTo(125 + 48.6);
+    expect(t.profit).toBeCloseTo(375 - 48.6);
+    expect(t.roas).toBeCloseTo(1500 / 650); // ROAS continua sobre o gasto (igual ao Gerenciador)
+  });
+  it('imposto do CNPJ sobre o faturamento bruto', () => {
+    const d = db();
+    d.settings.taxBase = 'gross';
+    const t = computeTotals(d, { from: '2026-01-01', to: '2026-01-31' });
+    expect(t.taxCompany).toBe(150); // 10% de 1500
+    expect(t.profit).toBe(1250 - 650 - 100 - 150);
+  });
+  it('quebras, série e semanas usam as mesmas regras', () => {
+    const d = db();
+    d.settings.adTaxRate = 10;
+    d.settings.taxBase = 'gross';
+    const f = { from: '2026-01-01', to: '2026-01-31' };
+    const total = computeTotals(d, f).profit;
+    const byProduct = breakdown(d, f, 'productId');
+    expect(byProduct.find((r) => r.key === 'p1')!.adTax).toBeCloseTo(40);
+    expect(timeSeries(d, f).points.at(-1)!.cumulative).toBeCloseTo(total);
+    expect(weeklySummary(d, 1, '2026-01-11')[0].totals.profit).toBeCloseTo(total);
+  });
+});

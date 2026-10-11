@@ -1,4 +1,4 @@
-import type { AdSpend, CapitalMove, Database, Expense, Sale } from './types';
+import type { AdSpend, CapitalMove, Database, Expense, Sale, Settings } from './types';
 import { addDays, addMonths, daysBetween, monthOf, monthsBetween, weekStart } from './dates';
 
 export interface Filter {
@@ -21,6 +21,15 @@ export const saleFees = (s: Sale) => toBase(s.fees, s.rate);
 export const saleRefunds = (s: Sale) => toBase(s.refunds, s.rate);
 export const saleNet = (s: Sale) => saleGross(s) - saleFees(s) - saleRefunds(s);
 export const adBase = (a: AdSpend) => toBase(a.amount, a.rate);
+
+/** Gasto da Meta (sincronizado ou lançado como Meta/Facebook/Instagram) — sobre ele incidem os impostos da Meta. */
+export const isMetaAd = (a: AdSpend) => a.origin === 'meta' || /meta|facebook|instagram/i.test(a.source ?? '');
+export const adTaxOf = (a: AdSpend, s: Pick<Settings, 'adTaxRate'>) => (isMetaAd(a) ? (adBase(a) * (Number(s.adTaxRate) || 0)) / 100 : 0);
+
+export type TaxCfg = Pick<Settings, 'taxRate' | 'taxBase' | 'adTaxRate'>;
+/** Imposto do CNPJ sobre a receita líquida (padrão) ou sobre o faturamento bruto. */
+export const companyTax = (gross: number, net: number, cfg: TaxCfg) =>
+  Math.max(0, cfg.taxBase === 'gross' ? gross : net) * ((Number(cfg.taxRate) || 0) / 100);
 
 /** Ocorrência concreta de uma despesa (despesas mensais viram uma ocorrência por mês). */
 export interface ExpenseOccurrence {
@@ -61,7 +70,12 @@ export interface Totals {
   units: number;
   ads: number;
   expenses: number;
+  /** Impostos totais = imposto do CNPJ + impostos da Meta */
   tax: number;
+  /** Imposto do CNPJ */
+  taxCompany: number;
+  /** Impostos cobrados pela Meta sobre os anúncios */
+  adTax: number;
   profit: number;
   margin: number | null;
   roas: number | null;
@@ -74,17 +88,30 @@ export interface Totals {
 
 const div = (a: number, b: number) => (b ? a / b : null);
 
-export function buildTotals(
-  parts: { gross: number; fees: number; refunds: number; units: number; ads: number; expenses: number },
-  taxRate: number,
-): Totals {
+export interface TotalsParts {
+  gross: number;
+  fees: number;
+  refunds: number;
+  units: number;
+  ads: number;
+  expenses: number;
+  /** Impostos da Meta já calculados sobre o gasto (ver adTaxOf) */
+  adTax?: number;
+}
+
+export function buildTotals(parts: TotalsParts, cfg: TaxCfg | number): Totals {
+  const tc: TaxCfg = typeof cfg === 'number' ? { taxRate: cfg } : cfg;
   const net = parts.gross - parts.fees - parts.refunds;
-  const tax = Math.max(0, net) * (taxRate / 100);
+  const taxCompany = companyTax(parts.gross, net, tc);
+  const adTax = parts.adTax ?? 0;
+  const tax = taxCompany + adTax;
   const profit = net - parts.ads - parts.expenses - tax;
   return {
     ...parts,
     net,
     tax,
+    taxCompany,
+    adTax,
     profit,
     margin: div(profit, parts.gross),
     roas: div(parts.gross, parts.ads),
@@ -140,9 +167,10 @@ export function computeTotals(db: Database, f: Filter): Totals {
       refunds: sum(sales, saleRefunds),
       units: sum(sales, (s) => Number(s.quantity) || 0),
       ads: sum(ads, adBase),
+      adTax: sum(ads, (a) => adTaxOf(a, db.settings)),
       expenses: sum(expenses, (o) => o.amount),
     },
-    db.settings.taxRate,
+    db.settings,
   );
 }
 
@@ -166,15 +194,23 @@ export function timeSeries(
   const granularity = days.length > maxDailyDays ? 'month' : 'day';
   const keys = granularity === 'day' ? days : monthsBetween(f.from, f.to);
   const bucket = (date: string) => (granularity === 'day' ? date : monthOf(date));
-  const map = new Map(keys.map((k) => [k, { net: 0, ads: 0, expenses: 0 }]));
+  const map = new Map(keys.map((k) => [k, { gross: 0, net: 0, ads: 0, adTax: 0, expenses: 0 }]));
   const { sales, ads, expenses } = filtered(db, f);
-  for (const s of sales) map.get(bucket(s.date))!.net += saleNet(s);
-  for (const a of ads) map.get(bucket(a.date))!.ads += adBase(a);
+  for (const s of sales) {
+    const b = map.get(bucket(s.date))!;
+    b.net += saleNet(s);
+    b.gross += saleGross(s);
+  }
+  for (const a of ads) {
+    const b = map.get(bucket(a.date))!;
+    b.ads += adBase(a);
+    b.adTax += adTaxOf(a, db.settings);
+  }
   for (const o of expenses) map.get(bucket(o.date))!.expenses += o.amount;
   let cumulative = 0;
   const points = keys.map((key) => {
-    const b = map.get(key)!;
-    const tax = Math.max(0, b.net) * (db.settings.taxRate / 100);
+    const { gross, adTax, ...b } = map.get(key)!;
+    const tax = companyTax(gross, b.net, db.settings) + adTax;
     const profit = b.net - b.ads - b.expenses - tax;
     cumulative += profit;
     return { key, ...b, tax, profit, cumulative };
@@ -193,9 +229,9 @@ export interface BreakdownRow extends Totals {
  */
 export function breakdown(db: Database, f: Filter, dim: 'productId' | 'country' | 'platform' | 'source'): BreakdownRow[] {
   const { sales, ads, expenses } = filtered(db, f);
-  const rows = new Map<string, { gross: number; fees: number; refunds: number; units: number; ads: number; expenses: number }>();
+  const rows = new Map<string, Required<TotalsParts>>();
   const get = (k: string) => {
-    if (!rows.has(k)) rows.set(k, { gross: 0, fees: 0, refunds: 0, units: 0, ads: 0, expenses: 0 });
+    if (!rows.has(k)) rows.set(k, { gross: 0, fees: 0, refunds: 0, units: 0, ads: 0, adTax: 0, expenses: 0 });
     return rows.get(k)!;
   };
   if (dim !== 'source') {
@@ -208,13 +244,17 @@ export function breakdown(db: Database, f: Filter, dim: 'productId' | 'country' 
     }
   }
   if (dim !== 'platform') {
-    for (const a of ads) get(String(a[dim] || '—')).ads += adBase(a);
+    for (const a of ads) {
+      const r = get(String(a[dim] || '—'));
+      r.ads += adBase(a);
+      r.adTax += adTaxOf(a, db.settings);
+    }
   }
   if (dim === 'productId') {
     for (const o of expenses) if (o.expense.productId) get(o.expense.productId).expenses += o.amount;
   }
   return [...rows.entries()]
-    .map(([key, parts]) => ({ key, ...buildTotals(parts, db.settings.taxRate) }))
+    .map(([key, parts]) => ({ key, ...buildTotals(parts, db.settings) }))
     .sort((a, b) => b.gross + b.ads - (a.gross + a.ads));
 }
 
@@ -276,16 +316,17 @@ export interface CampaignRow extends Totals {
  * Despesas não entram: lucro = receita líquida − ads − imposto.
  */
 export function campaignBreakdown(db: Database, f: Filter): CampaignRow[] {
-  type Acc = { campaign: string; source: string; productId: string; impressions: number; clicks: number; purchases: number; gross: number; fees: number; refunds: number; units: number; ads: number };
+  type Acc = { campaign: string; source: string; productId: string; impressions: number; clicks: number; purchases: number; gross: number; fees: number; refunds: number; units: number; ads: number; adTax: number };
   const rows = new Map<string, Acc>();
   const get = (campaign: string, productId: string, source: string) => {
     const key = `${campaign}|${productId}`;
-    if (!rows.has(key)) rows.set(key, { campaign, source, productId, impressions: 0, clicks: 0, purchases: 0, gross: 0, fees: 0, refunds: 0, units: 0, ads: 0 });
+    if (!rows.has(key)) rows.set(key, { campaign, source, productId, impressions: 0, clicks: 0, purchases: 0, gross: 0, fees: 0, refunds: 0, units: 0, ads: 0, adTax: 0 });
     return rows.get(key)!;
   };
   for (const a of db.ads.filter((x) => matchAd(x, f))) {
     const r = get(campaignOf(a) || '(sem campanha)', a.productId, a.source);
     r.ads += adBase(a);
+    r.adTax += adTaxOf(a, db.settings);
     r.impressions += Number(a.metrics?.impressions) || 0;
     r.clicks += Number(a.metrics?.clicks) || 0;
     r.purchases += Number(a.metrics?.purchases) || 0;
@@ -305,7 +346,7 @@ export function campaignBreakdown(db: Database, f: Filter): CampaignRow[] {
       impressions,
       clicks,
       purchases,
-      ...buildTotals({ ...parts, expenses: 0 }, db.settings.taxRate),
+      ...buildTotals({ ...parts, expenses: 0 }, db.settings),
       ctr: div(clicks, impressions),
       cpc: div(parts.ads, clicks),
       cpm: impressions ? (parts.ads / impressions) * 1000 : null,

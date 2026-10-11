@@ -23,6 +23,7 @@
   "include": [
     "src",
     "../supabase/functions/_shared/adapters.ts",
-    "../supabase/functions/_shared/util.ts"
+    "../supabase/functions/_shared/util.ts",
+    "../supabase/functions/_shared/sheet.ts"
   ]
 }

@@ -205,7 +205,14 @@ function Performance(props: PanelProps) {
         </p>
       )}
       <div className="grid mini-row">
-        <MiniKpi label="Investido em ads" value={m(t.ads)} current={t.ads} previous={p.ads} inverse />
+        <MiniKpi
+          label="Investido em ads"
+          value={m(t.ads)}
+          current={t.ads}
+          previous={p.ads}
+          inverse
+          extra={t.adTax > 0 ? <span className="muted small">+ {m(t.adTax)} de impostos da Meta</span> : undefined}
+        />
         <MiniKpi label="Faturamento bruto" value={m(t.gross)} current={t.gross} previous={p.gross} />
         <MiniKpi label="Receita líquida" value={m(t.net)} current={t.net} previous={p.net} title="Bruto − taxas − reembolsos" />
         <MiniKpi label="Vendas" value={num(t.units)} current={t.units} previous={p.units} />
