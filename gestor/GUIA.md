@@ -73,7 +73,7 @@ Se você usou o app antes (dados só no navegador):
 
 ## 7. Conectar as plataformas de venda
 
-Em **Integrações → Conexões**, escolha a plataforma e clique em **Adicionar**. Para cada uma:
+Em **Receitas → Conectar plataforma** (ou *Integrações → Conexões*), escolha a plataforma e clique no botão. Para cada uma:
 
 1. Copie a **URL do webhook** gerada.
 2. No painel da plataforma, cadastre um webhook com essa URL e ative os eventos indicados no cartão.
@@ -90,6 +90,8 @@ Em **Integrações → Conexões**, escolha a plataforma e clique em **Adicionar
 | Outra | — | use **"Outra plataforma"** e informe onde ficam os campos no JSON |
 
 **Taxas:** Hotmart e Cakto informam as taxas no webhook. Para as demais, preencha **"Taxa %"** no cartão (ex.: 9,9) para o lucro sair correto; vendas com taxa estimada aparecem com `*`.
+
+**Acompanhamento:** a aba **Receitas** mostra a situação de cada plataforma (recebendo, aguardando a 1ª venda, eventos com erro), faturamento, taxas, reembolsos, líquido, ticket médio e taxa de reembolso do período, a receita por plataforma e por produto, e a lista das vendas recebidas, que se atualiza sozinha.
 
 **Primeira venda real de cada plataforma:** confira em *Eventos recebidos* se valor, produto e taxa saíram certos. O conteúdo recebido fica guardado (ícone 👁); se algo vier diferente, o adaptador é ajustado e você clica em **Reprocessar** — nada se perde.
 
