@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   baseCurrency: 'BRL',
   rates: { BRL: 1, USD: 5.4, EUR: 5.9, GBP: 6.9, MXN: 0.3, COP: 0.0013, ARS: 0.0045, CLP: 0.0057, PEN: 1.45 },
   taxRate: 6,
-  businessName: 'Minha Operação',
+  businessName: 'CADIGITAL',
   timezone: 'America/Sao_Paulo',
   platforms: ['Hotmart', 'Kiwify', 'Eduzz', 'Monetizze', 'Braip', 'ClickBank', 'Digistore24', 'BuyGoods', 'Stripe', 'PayPal'],
   adSources: ['Meta Ads', 'Google Ads', 'YouTube Ads', 'TikTok Ads', 'Taboola', 'Outbrain', 'Native', 'Bing Ads'],
@@ -52,9 +52,12 @@ export function normalize(raw: unknown): Database {
   if (!raw || typeof raw !== 'object') return base;
   const r = raw as Partial<Database>;
   const arr = <T,>(x: T[] | undefined) => (Array.isArray(x) ? x : []);
+  const settings = { ...base.settings, ...(r.settings || {}), rates: { ...base.settings.rates, ...(r.settings?.rates || {}) } };
+  // nome padrão antigo vira o nome da empresa
+  if (!settings.businessName || settings.businessName === 'Minha Operação') settings.businessName = base.settings.businessName;
   return {
     version: 1,
-    settings: { ...base.settings, ...(r.settings || {}), rates: { ...base.settings.rates, ...(r.settings?.rates || {}) } },
+    settings,
     products: arr(r.products),
     sales: arr(r.sales),
     ads: arr(r.ads),

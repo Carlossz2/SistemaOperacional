@@ -31,7 +31,7 @@ export function SecurityCard() {
     // limpa tentativas anteriores não concluídas
     const { data: existing } = await sb.auth.mfa.listFactors();
     for (const f of existing?.all ?? []) if (f.status !== 'verified') await sb.auth.mfa.unenroll({ factorId: f.id });
-    const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Gestor DR ${new Date().toLocaleDateString('pt-BR')}` });
+    const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: `CADIGITAL ${new Date().toLocaleDateString('pt-BR')}` });
     if (error || !data || data.type !== 'totp') return setMsg({ error: true, text: error?.message ?? 'Falha ao iniciar' });
     setEnroll({ id: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
   };

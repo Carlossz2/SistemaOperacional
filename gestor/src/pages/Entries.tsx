@@ -1,11 +1,13 @@
+import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Crud, type Field } from '../components/Crud';
+import { Crud, EntryForm, type Field } from '../components/Crud';
 import { RevenuePanel } from '../components/RevenuePanel';
-import { TrafficPanel } from '../components/TrafficPanel';
+import { TrafficPanel, type TrafficFilter } from '../components/TrafficPanel';
 import type { AdSpend, CapitalMove, Database, Expense, Product, Sale } from '../lib/types';
-import { adBase, saleGross, saleNet, toBase } from '../lib/metrics';
+import { adBase, campaignNames, campaignOf, saleGross, saleNet, toBase } from '../lib/metrics';
 import { money, num, shortDate } from '../lib/format';
 import { today } from '../lib/dates';
+import { uid, upsert, useDb } from '../lib/store';
 
 // Produtos pausados continuam na lista (no fim) para não trocar o produto ao editar lançamentos antigos
 const productOptions = (db: Database) =>
@@ -27,19 +29,35 @@ const NeedProduct = () => (
 
 const currencyFields: Field[] = [{ key: 'currency', label: 'Moeda', type: 'currency' }];
 
+const saleFields: Field[] = [
+  { key: 'date', label: 'Data', type: 'date', required: true },
+  { key: 'productId', label: 'Produto / oferta', type: 'select', required: true, options: productOptions },
+  { key: 'platform', label: 'Plataforma', type: 'text', required: true, suggestions: (db) => db.settings.platforms },
+  { key: 'country', label: 'País', type: 'text', required: true, suggestions: countries, placeholder: 'BR, MX, US…' },
+  ...currencyFields,
+  { key: 'quantity', label: 'Nº de vendas', type: 'number', required: true },
+  { key: 'gross', label: 'Faturamento bruto', type: 'number', required: true, hint: 'Valor total pago pelos clientes' },
+  { key: 'fees', label: 'Taxas (plataforma, gateway, afiliados)', type: 'number' },
+  { key: 'refunds', label: 'Reembolsos + chargebacks', type: 'number' },
+  { key: 'campaign', label: 'Campanha (opcional)', type: 'text', span2: true, suggestions: (db) => campaignNames(db), hint: 'Use o mesmo nome da campanha no Meta para ver o ROI dela em Tráfego pago' },
+  { key: 'notes', label: 'Observações', type: 'textarea', span2: true },
+];
+
+const blankSale = (db: Database, over: Partial<Sale> = {}) => ({
+  date: today(),
+  productId: db.products.find((p) => p.active)?.id ?? '',
+  platform: db.settings.platforms[0] ?? '',
+  country: 'BR',
+  currency: base(db),
+  rate: 1,
+  quantity: 1,
+  gross: '',
+  fees: '',
+  refunds: '',
+  ...over,
+});
+
 export function SalesPage() {
-  const fields: Field[] = [
-    { key: 'date', label: 'Data', type: 'date', required: true },
-    { key: 'productId', label: 'Produto / oferta', type: 'select', required: true, options: productOptions },
-    { key: 'platform', label: 'Plataforma', type: 'text', required: true, suggestions: (db) => db.settings.platforms },
-    { key: 'country', label: 'País', type: 'text', required: true, suggestions: countries, placeholder: 'BR, MX, US…' },
-    ...currencyFields,
-    { key: 'quantity', label: 'Nº de vendas', type: 'number', required: true },
-    { key: 'gross', label: 'Faturamento bruto', type: 'number', required: true, hint: 'Valor total pago pelos clientes' },
-    { key: 'fees', label: 'Taxas (plataforma, gateway, afiliados)', type: 'number' },
-    { key: 'refunds', label: 'Reembolsos + chargebacks', type: 'number' },
-    { key: 'notes', label: 'Observações', type: 'textarea', span2: true },
-  ];
   return (
     <Crud<Sale>
       title="Receitas"
@@ -48,26 +66,16 @@ export function SalesPage() {
       locked={(s) => (s.origin === 'auto' ? `Recebida automaticamente (${s.platform}). Detalhes em Integrações → Vendas recebidas.` : null)}
       byPeriod
       header={<RevenuePanel />}
-      fields={fields}
+      fields={saleFields}
       emptyHint={<NeedProduct />}
-      blank={(db) => ({
-        date: today(),
-        productId: db.products.find((p) => p.active)?.id ?? '',
-        platform: db.settings.platforms[0] ?? '',
-        country: 'BR',
-        currency: base(db),
-        rate: 1,
-        quantity: 1,
-        gross: '',
-        fees: '',
-        refunds: '',
-      })}
-      search={(s, db) => `${productName(db, s.productId)} ${s.platform} ${s.country} ${s.notes ?? ''}`}
+      blank={(db) => blankSale(db)}
+      search={(s, db) => `${productName(db, s.productId)} ${s.platform} ${s.country} ${s.campaign ?? ''} ${s.notes ?? ''}`}
       columns={[
         { label: 'Data', render: (s) => shortDate(s.date), csv: (s) => s.date },
         { label: 'Produto', render: (s, db) => productName(db, s.productId), csv: (s, db) => productName(db, s.productId) },
         { label: 'Plataforma', render: (s) => s.platform, csv: (s) => s.platform },
         { label: 'País', render: (s) => <span className="pill">{s.country}</span>, csv: (s) => s.country },
+        { label: 'Campanha', render: (s) => campaignOf(s) || '—', csv: (s) => campaignOf(s) },
         { label: 'Vendas', num: true, render: (s) => num(s.quantity), csv: (s) => s.quantity },
         { label: 'Bruto (moeda)', num: true, render: (s) => orig(s.gross, s.currency), csv: (s) => `${s.gross} ${s.currency}` },
         { label: 'Bruto', num: true, render: (s, db) => money(saleGross(s), base(db)), csv: (s) => saleGross(s) },
@@ -75,6 +83,7 @@ export function SalesPage() {
       ]}
       footer={(items, db) => [
         'Total',
+        '',
         '',
         '',
         '',
@@ -88,14 +97,30 @@ export function SalesPage() {
 }
 
 export function AdsPage() {
+  const db = useDb();
+  const [filter, setFilter] = useState<TrafficFilter>({ productId: '', campaign: '' });
+  const [sale, setSale] = useState<Record<string, unknown> | null>(null);
+  const match = useCallback(
+    (a: AdSpend) => (!filter.productId || a.productId === filter.productId) && (!filter.campaign || campaignOf(a) === filter.campaign),
+    [filter],
+  );
+  const addSale = () => {
+    if (!db.products.length) return alert('Cadastre primeiro um produto/oferta em Produtos.');
+    const over: Partial<Sale> = {};
+    if (filter.productId) over.productId = filter.productId;
+    if (filter.campaign) over.campaign = filter.campaign;
+    setSale({ ...blankSale(db, over), id: uid() });
+  };
   return (
+    <>
     <Crud<AdSpend>
       title="Tráfego pago"
       subtitle="Gasto em anúncios × vendas reais: lucro, ROAS, CPA e ROI por produto e campanha. Os gastos da Meta entram sozinhos, de hora em hora (🔒)."
       collection="ads"
       locked={(a) => (a.origin === 'meta' ? 'Sincronizado da Meta Ads. Para mudar o produto, ajuste as regras em Integrações e sincronize de novo.' : null)}
       byPeriod
-      header={<TrafficPanel />}
+      header={<TrafficPanel filter={filter} onFilter={setFilter} onAddSale={addSale} />}
+      filter={filter.productId || filter.campaign ? match : undefined}
       emptyHint={<NeedProduct />}
       fields={[
         { key: 'date', label: 'Data', type: 'date', required: true },
@@ -128,6 +153,20 @@ export function AdsPage() {
       ]}
       footer={(items, db) => ['Total', '', '', '', '', '', money(sum(items, adBase), base(db))]}
     />
+    {sale && (
+      <EntryForm
+        title="Venda manual"
+        fields={saleFields}
+        draft={sale}
+        db={db}
+        onCancel={() => setSale(null)}
+        onSave={(d) => {
+          upsert('sales', d as never);
+          setSale(null);
+        }}
+      />
+    )}
+    </>
   );
 }
 

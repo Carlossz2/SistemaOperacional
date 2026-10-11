@@ -103,7 +103,7 @@ export function Dashboard() {
 
       {empty && (
         <div className="callout mb">
-          <h2>Bem-vindo ao seu Gestor DR</h2>
+          <h2>Bem-vindo à CADIGITAL</h2>
           <p>
             Cadastre suas <Link to="/produtos">ofertas</Link>, depois lance <Link to="/receitas">receitas</Link>,{' '}
             <Link to="/trafego">tráfego</Link> e <Link to="/despesas">despesas</Link>. Já tem um backup? Restaure em{' '}

@@ -61,7 +61,7 @@ function Shell() {
         <button className="ghost" onClick={() => setOpen(!open)} aria-label="Menu">
           <Icon name="menu" />
         </button>
-        <b>Gestor DR</b>
+        <b>CADIGITAL</b>
       </div>
       {open && <div className="drawer-bg" onClick={() => setOpen(false)} />}
       <div className="shell">
@@ -70,7 +70,7 @@ function Shell() {
             <span className="brand-logo">
               <Icon name="logo" size={16} />
             </span>
-            <span className="brand-name">Gestor DR</span>
+            <span className="brand-name">CADIGITAL</span>
           </div>
           {NAV.filter((n) => n.to !== '/configuracoes').map((n) => (
             <NavLink
@@ -163,7 +163,7 @@ function SyncToast() {
   const st = useSyncStatus();
   const updating = useUpdating();
   const [hidden, setHidden] = useState('');
-  if (updating) return <div className="toast warn" role="status">Nova versão do Gestor DR disponível — atualizando…</div>;
+  if (updating) return <div className="toast warn" role="status">Nova versão da CADIGITAL disponível — atualizando…</div>;
   if (!isCloudActive() || !st.message || hidden === st.message || (st.state !== 'error' && st.state !== 'offline')) return null;
   return (
     <div className={`toast ${st.state === 'offline' ? 'warn' : ''}`} role="status">

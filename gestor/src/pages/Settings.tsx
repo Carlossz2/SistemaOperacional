@@ -102,7 +102,7 @@ export function Settings() {
           </div>
           {pwa.canInstall && (
             <button className="primary" onClick={promptInstall}>
-              <Icon name="download" size={15} /> Instalar Gestor DR
+              <Icon name="download" size={15} /> Instalar CADIGITAL
             </button>
           )}
         </div>
@@ -120,7 +120,7 @@ export function Settings() {
         ) : (
           <p className="muted small" style={{ margin: 0 }}>
             No Chrome ou Edge (computador e Android): clique no ícone de instalar na barra de endereço ou no menu ⋮ → <b>Instalar
-            Gestor DR</b>. Se a opção não aparecer, abra o sistema pelo endereço publicado (GitHub Pages), não pela pré-visualização.
+            CADIGITAL</b>. Se a opção não aparecer, abra o sistema pelo endereço publicado (GitHub Pages), não pela pré-visualização.
           </p>
         )}
       </div>

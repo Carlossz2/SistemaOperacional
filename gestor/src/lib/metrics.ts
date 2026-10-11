@@ -6,7 +6,11 @@ export interface Filter {
   to: string;
   productId?: string;
   country?: string;
+  /** Nome exato da campanha (gastos e vendas lançadas com campanha) */
+  campaign?: string;
 }
+
+export const campaignOf = (x: { campaign?: string }) => x.campaign?.trim() ?? '';
 
 const inRange = (date: string, f: Filter) => date >= f.from && date <= f.to;
 
@@ -93,17 +97,27 @@ export function buildTotals(
 }
 
 function matchSale(s: Sale, f: Filter) {
-  return inRange(s.date, f) && (!f.productId || s.productId === f.productId) && (!f.country || s.country === f.country);
+  return (
+    inRange(s.date, f) &&
+    (!f.productId || s.productId === f.productId) &&
+    (!f.country || s.country === f.country) &&
+    (!f.campaign || campaignOf(s) === f.campaign)
+  );
 }
 function matchAd(a: AdSpend, f: Filter) {
-  return inRange(a.date, f) && (!f.productId || a.productId === f.productId) && (!f.country || a.country === f.country);
+  return (
+    inRange(a.date, f) &&
+    (!f.productId || a.productId === f.productId) &&
+    (!f.country || a.country === f.country) &&
+    (!f.campaign || campaignOf(a) === f.campaign)
+  );
 }
 /**
  * Com filtro de produto, só entram despesas atribuídas àquele produto.
- * Com filtro de país, despesas não entram (não têm país) — o resultado vira margem de contribuição.
+ * Com filtro de país ou campanha, despesas não entram — o resultado vira margem de contribuição.
  */
 function expenseOccurrences(db: Database, f: Filter) {
-  if (f.country) return [];
+  if (f.country || f.campaign) return [];
   return expandExpenses(db.expenses, f.from, f.to).filter((o) => !f.productId || o.expense.productId === f.productId);
 }
 
@@ -242,11 +256,10 @@ export function earliestDate(db: Database): string | undefined {
   return dates[0];
 }
 
-export interface CampaignRow {
+export interface CampaignRow extends Totals {
   campaign: string;
   source: string;
   productId: string;
-  spend: number;
   impressions: number;
   clicks: number;
   /** Compras informadas pelo pixel da Meta (podem divergir das vendas reais) */
@@ -255,29 +268,55 @@ export interface CampaignRow {
   cpc: number | null;
   cpm: number | null;
   /** Gasto ÷ compras do pixel */
-  cpa: number | null;
+  pixelCpa: number | null;
 }
 
-/** Gasto e métricas de entrega por campanha no período (métricas vêm da Meta; manuais só têm gasto). */
+/**
+ * Por campanha (+ produto): gasto e métricas de entrega (Meta) e as vendas lançadas com o nome da campanha.
+ * Despesas não entram: lucro = receita líquida − ads − imposto.
+ */
 export function campaignBreakdown(db: Database, f: Filter): CampaignRow[] {
-  const rows = new Map<string, Omit<CampaignRow, 'ctr' | 'cpc' | 'cpm' | 'cpa'>>();
+  type Acc = { campaign: string; source: string; productId: string; impressions: number; clicks: number; purchases: number; gross: number; fees: number; refunds: number; units: number; ads: number };
+  const rows = new Map<string, Acc>();
+  const get = (campaign: string, productId: string, source: string) => {
+    const key = `${campaign}|${productId}`;
+    if (!rows.has(key)) rows.set(key, { campaign, source, productId, impressions: 0, clicks: 0, purchases: 0, gross: 0, fees: 0, refunds: 0, units: 0, ads: 0 });
+    return rows.get(key)!;
+  };
   for (const a of db.ads.filter((x) => matchAd(x, f))) {
-    const campaign = a.campaign?.trim() || '(sem campanha)';
-    const key = `${a.source}|${campaign}|${a.productId}`;
-    const r = rows.get(key) ?? { campaign, source: a.source, productId: a.productId, spend: 0, impressions: 0, clicks: 0, purchases: 0 };
-    r.spend += adBase(a);
+    const r = get(campaignOf(a) || '(sem campanha)', a.productId, a.source);
+    r.ads += adBase(a);
     r.impressions += Number(a.metrics?.impressions) || 0;
     r.clicks += Number(a.metrics?.clicks) || 0;
     r.purchases += Number(a.metrics?.purchases) || 0;
-    rows.set(key, r);
+  }
+  for (const s of db.sales.filter((x) => campaignOf(x) && matchSale(x, f))) {
+    const r = get(campaignOf(s), s.productId, '');
+    r.gross += saleGross(s);
+    r.fees += saleFees(s);
+    r.refunds += saleRefunds(s);
+    r.units += Number(s.quantity) || 0;
   }
   return [...rows.values()]
-    .map((r) => ({
-      ...r,
-      ctr: div(r.clicks, r.impressions),
-      cpc: div(r.spend, r.clicks),
-      cpm: r.impressions ? (r.spend / r.impressions) * 1000 : null,
-      cpa: div(r.spend, r.purchases),
+    .map(({ campaign, source, productId, impressions, clicks, purchases, ...parts }) => ({
+      campaign,
+      source,
+      productId,
+      impressions,
+      clicks,
+      purchases,
+      ...buildTotals({ ...parts, expenses: 0 }, db.settings.taxRate),
+      ctr: div(clicks, impressions),
+      cpc: div(parts.ads, clicks),
+      cpm: impressions ? (parts.ads / impressions) * 1000 : null,
+      pixelCpa: div(parts.ads, purchases),
     }))
-    .sort((a, b) => b.spend - a.spend);
+    .sort((a, b) => b.ads + b.gross - (a.ads + a.gross));
+}
+
+/** Campanhas conhecidas (gastos e vendas), opcionalmente de um produto. */
+export function campaignNames(db: Database, productId?: string): string[] {
+  const names = new Set<string>();
+  for (const x of [...db.ads, ...db.sales]) if (campaignOf(x) && (!productId || x.productId === productId)) names.add(campaignOf(x));
+  return [...names].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }

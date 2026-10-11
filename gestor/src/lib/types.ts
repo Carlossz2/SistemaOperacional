@@ -1,4 +1,4 @@
-// Modelo de dados do Gestor DR.
+// Modelo de dados do CADIGITAL.
 // Todo lançamento em moeda estrangeira guarda a cotação usada no dia (`rate`),
 // para que relatórios antigos não mudem quando o câmbio muda.
 
@@ -39,6 +39,8 @@ export interface Sale extends MoneyEntry {
   fees: number;
   /** Reembolsos + chargebacks */
   refunds: number;
+  /** Campanha de origem (opcional), para medir o ROI por campanha */
+  campaign?: string;
   /** manual = lançado no app; auto = consolidado das vendas recebidas por webhook (somente leitura) */
   origin?: 'manual' | 'auto';
 }
