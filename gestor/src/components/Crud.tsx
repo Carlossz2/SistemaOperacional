@@ -13,7 +13,7 @@ export interface Field {
   key: string;
   label: string;
   type: 'text' | 'number' | 'date' | 'month' | 'select' | 'textarea' | 'checkbox' | 'currency';
-  options?: (db: Database) => { value: string; label: string }[];
+  options?: (db: Database, draft: Draft) => { value: string; label: string; disabled?: boolean }[];
   /** Sugestões para campo de texto livre */
   suggestions?: (db: Database) => string[];
   required?: boolean;
@@ -287,8 +287,8 @@ function EntryForm(p: {
                 input = (
                   <select {...common} onChange={(e) => set(f.key, e.target.value)}>
                     {!f.required && <option value="">—</option>}
-                    {f.options!(p.db).map((o) => (
-                      <option key={o.value} value={o.value}>
+                    {f.options!(p.db, d).map((o) => (
+                      <option key={o.value} value={o.value} disabled={o.disabled}>
                         {o.label}
                       </option>
                     ))}

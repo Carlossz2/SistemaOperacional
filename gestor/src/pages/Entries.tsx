@@ -262,6 +262,20 @@ const KIND_PRODUCT: Record<Product['kind'], string> = {
   outro: 'Outro',
 };
 
+const MARKETS: Record<string, string> = {
+  BR: 'BR — Brasil',
+  LATAM: 'LATAM — América Latina',
+  GLOBAL: 'GLOBAL — Mundo',
+};
+
+/** Opções de mercado; mantém um valor antigo fora da lista e força a escolha quando vazio. */
+function marketOptions(current: string) {
+  const opts: { value: string; label: string; disabled?: boolean }[] = Object.entries(MARKETS).map(([value, label]) => ({ value, label }));
+  if (!current) opts.unshift({ value: '', label: 'Selecione o mercado…', disabled: true });
+  else if (!MARKETS[current]) opts.push({ value: current, label: `${current} (antigo)` });
+  return opts;
+}
+
 export function ProductsPage() {
   return (
     <Crud<Product>
@@ -281,7 +295,7 @@ export function ProductsPage() {
       emptyHint="Cadastre sua primeira oferta para começar."
       fields={[
         { key: 'name', label: 'Nome', type: 'text', required: true, span2: true },
-        { key: 'market', label: 'Mercado', type: 'text', suggestions: () => ['BR', 'LATAM', 'US', 'EUROPA', 'GLOBAL'] },
+        { key: 'market', label: 'Mercado', type: 'select', required: true, options: (_db, d) => marketOptions(String(d.market ?? '')) },
         {
           key: 'kind',
           label: 'Tipo',
