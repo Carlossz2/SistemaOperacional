@@ -224,6 +224,8 @@ button.primary:hover, .btn.primary:hover { filter: brightness(1.1); background: 
 button.danger { color: var(--bad-text); }
 button.ghost { border-color: transparent; background: transparent; padding: 6px 8px; }
 button.ghost:hover { background: var(--surface-2); }
+button.link { border: 0; background: none; padding: 0; color: var(--ink); font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+button.link:hover { color: var(--accent, var(--ink)); text-decoration-color: currentColor; }
 button:disabled { opacity: 0.45; cursor: default; }
 input, select, textarea {
   font: inherit; font-size: 13px; color: var(--ink);

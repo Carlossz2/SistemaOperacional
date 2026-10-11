@@ -39,6 +39,8 @@ export interface Sale extends MoneyEntry {
   fees: number;
   /** Reembolsos + chargebacks */
   refunds: number;
+  /** Campanha de origem (opcional), para medir o ROI por campanha */
+  campaign?: string;
   /** manual = lançado no app; auto = consolidado das vendas recebidas por webhook (somente leitura) */
   origin?: 'manual' | 'auto';
 }

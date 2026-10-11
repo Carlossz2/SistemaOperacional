@@ -27,6 +27,7 @@ begin;
 select test.login('11111111-1111-1111-1111-111111111111');
 insert into public.products (id, name) values ('p1', 'Oferta A'), ('p2', 'Oferta B');
 insert into public.sales (date, product_id, platform, country, quantity, gross, fees) values ('2026-10-01', 'p1', 'Manual', 'BR', 1, 100, 10);
+insert into public.sales (date, product_id, platform, quantity, gross, campaign) values ('2026-10-01', 'p1', 'Manual', 1, 50, 'KETO 01');
 insert into public.ads (date, product_id, source, amount) values ('2026-10-01', 'p1', 'Meta Ads', 50);
 insert into public.expenses (date, category, description, amount, recurrence) values ('2026-10-01', 'Ferramentas', 'X', 30, 'monthly');
 insert into public.capital (date, kind, description, amount) values ('2026-10-01', 'aporte', 'Inicial', 1000);
@@ -61,6 +62,9 @@ do $$
 declare v_token text; v_new text;
 begin
   assert (select count(*) from public.products) = 2, 'dono vê os próprios produtos';
+  assert (select campaign from public.sales where gross = 50) = 'KETO 01', 'venda manual guarda a campanha';
+  update public.sales set campaign = null where gross = 50;
+  assert found, 'dono edita a campanha da venda manual';
   -- não pode criar venda "automática" pelo app
   begin
     insert into public.sales (date, product_id, gross, origin, auto_key) values ('2026-10-01', 'p1', 1, 'auto', 'x');

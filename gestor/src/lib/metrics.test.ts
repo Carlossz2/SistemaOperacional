@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breakdown, campaignBreakdown, capitalSummary, computeTotals, expandExpenses, timeSeries } from './metrics';
+import { breakdown, campaignBreakdown, campaignNames, capitalSummary, computeTotals, expandExpenses, timeSeries } from './metrics';
 import { emptyDb } from './store';
 import { previousPeriod, resolvePreset } from './dates';
 import type { Database, Expense } from './types';
@@ -115,10 +115,27 @@ describe('campaignBreakdown', () => {
     );
     const rows = campaignBreakdown(d, { from: '2026-01-01', to: '2026-01-31' });
     const keto = rows.find((r) => r.campaign === 'KETO 01')!;
-    expect(rows[0]).toBe(rows.find((r) => r.spend === 400));
-    expect(keto).toMatchObject({ spend: 200, impressions: 2000, clicks: 100, purchases: 4, cpa: 50, cpc: 2 });
+    expect(keto).toMatchObject({ ads: 200, impressions: 2000, clicks: 100, purchases: 4, pixelCpa: 50, cpc: 2 });
     expect(keto.ctr).toBeCloseTo(0.05);
     expect(keto.cpm).toBeCloseTo(100);
-    expect(rows.find((r) => r.campaign === '(sem campanha)' && r.source === 'Google Ads')?.cpa).toBeNull();
+    expect(rows.find((r) => r.campaign === '(sem campanha)' && r.productId === 'p2')?.pixelCpa).toBeNull();
+  });
+  it('soma vendas lançadas com a campanha e calcula lucro e ROI da campanha', () => {
+    const d = db();
+    d.ads.push({ id: 'a3', date: '2026-01-10', productId: 'p1', source: 'Meta Ads', campaign: 'KETO 01', country: 'BR', currency: 'BRL', rate: 1, amount: 100 });
+    d.sales.push({ id: 's3', date: '2026-01-10', productId: 'p1', platform: 'Hotmart', country: 'BR', currency: 'BRL', rate: 1, quantity: 2, gross: 400, fees: 40, refunds: 0, campaign: ' KETO 01 ' });
+    const keto = campaignBreakdown(d, { from: '2026-01-01', to: '2026-01-31' }).find((r) => r.campaign === 'KETO 01')!;
+    expect(keto).toMatchObject({ ads: 100, gross: 400, net: 360, units: 2, cpa: 50 });
+    expect(keto.profit).toBeCloseTo(360 - 100 - 36); // imposto 10% sobre o líquido
+    expect(keto.roi).toBeCloseTo((360 - 100 - 36) / 100);
+  });
+  it('filtro por campanha: só gastos e vendas da campanha, sem despesas', () => {
+    const d = db();
+    d.ads.push({ id: 'a3', date: '2026-01-10', productId: 'p1', source: 'Meta Ads', campaign: 'KETO 01', country: 'BR', currency: 'BRL', rate: 1, amount: 100 });
+    d.sales.push({ id: 's3', date: '2026-01-10', productId: 'p1', platform: 'Hotmart', country: 'BR', currency: 'BRL', rate: 1, quantity: 2, gross: 400, fees: 40, refunds: 0, campaign: 'KETO 01' });
+    const t = computeTotals(d, { from: '2026-01-01', to: '2026-01-31', campaign: 'KETO 01' });
+    expect(t).toMatchObject({ ads: 100, gross: 400, units: 2, expenses: 0 });
+    expect(campaignNames(d)).toEqual(['KETO 01']);
+    expect(campaignNames(d, 'p2')).toEqual([]);
   });
 });

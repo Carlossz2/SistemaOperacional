@@ -104,6 +104,7 @@ Em **Receitas → Conectar plataforma** (ou *Integrações → Conexões*), esco
 3. No Gestor: **Tráfego pago → Conectar Meta Ads** (ou *Integrações → Meta Ads*), cole o token, informe as contas (`act_123…`) e crie regras **campanha → produto** (ex.: campanhas com "KETO" vão para o produto Keto).
 4. **Sincronizar agora** (escolha até 12 meses para trazer o histórico). Depois disso o gasto é atualizado **de hora em hora** automaticamente.
 5. A aba **Tráfego pago** cruza sozinha o gasto com as vendas das plataformas: investido, faturamento, CPA, ROAS, lucro e ROI do período, por produto e por campanha (impressões, cliques, CTR, CPC, CPM e compras do pixel). Gasto sem produto aparece em destaque: crie a regra para ele entrar no lucro do produto certo.
+6. **Filtros e vendas por campanha:** no topo do painel, filtre por **produto** e por **campanha** (ou clique numa campanha na tabela). O botão **Venda manual** lança uma venda já com o produto e a campanha do filtro. Vendas lançadas com o nome da campanha entram no lucro, ROAS, CPA e ROI dela. As vendas por webhook não trazem a campanha, então contam no produto, não na campanha.
 
 ## 9. Backup e longo prazo
 

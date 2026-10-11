@@ -34,6 +34,7 @@ export const fromRow = {
     gross: num(r.gross),
     fees: num(r.fees),
     refunds: num(r.refunds),
+    campaign: opt(r.campaign) as string | undefined,
     notes: opt(r.notes) as string | undefined,
     origin: (r.origin as Sale['origin']) ?? 'manual',
   }),
@@ -100,6 +101,8 @@ export const toRow = {
     gross: s.gross,
     fees: s.fees,
     refunds: s.refunds,
+    // só envia quando o formulário tocou no campo (registros antigos continuam gravando sem ele)
+    ...(s.campaign !== undefined ? { campaign: nul(s.campaign?.trim()) } : {}),
     notes: nul(s.notes),
   }),
   ads: (a: AdSpend): Row => ({

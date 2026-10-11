@@ -7,17 +7,68 @@ import { fmtDateTime, MetaCard, useIntegrations } from '../pages/Integrations';
 import { reloadAll, supabase } from '../lib/cloud/sync';
 import { addDays, previousPeriod, today } from '../lib/dates';
 import { money, num, pct, ratio } from '../lib/format';
-import { breakdown, campaignBreakdown, computeTotals } from '../lib/metrics';
+import { breakdown, campaignBreakdown, campaignNames, computeTotals, type CampaignRow } from '../lib/metrics';
 import { usePeriod } from '../lib/period';
 import { isCloudActive, useDb } from '../lib/store';
 
+export interface TrafficFilter {
+  productId: string;
+  campaign: string;
+}
+
+interface PanelProps {
+  filter: TrafficFilter;
+  onFilter: (f: TrafficFilter) => void;
+  onAddSale: () => void;
+}
+
 /** Topo da aba Tráfego pago: conexão com a Meta + performance do período (gasto × vendas × lucro × ROI). */
-export function TrafficPanel() {
+export function TrafficPanel(props: PanelProps) {
   return (
     <>
       {isCloudActive() ? <MetaConnection /> : <LocalNote />}
-      <Performance />
+      <Performance {...props} />
     </>
+  );
+}
+
+function Filters({ filter, onFilter, onAddSale }: PanelProps) {
+  const db = useDb();
+  const campaigns = useMemo(() => campaignNames(db, filter.productId || undefined), [db, filter.productId]);
+  const products = [...db.products].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'pt-BR'));
+  return (
+    <div className="toolbar">
+      <select
+        aria-label="Filtrar produto"
+        value={filter.productId}
+        onChange={(e) => {
+          const productId = e.target.value;
+          const keep = !filter.campaign || campaignNames(db, productId || undefined).includes(filter.campaign);
+          onFilter({ productId, campaign: keep ? filter.campaign : '' });
+        }}
+      >
+        <option value="">Todos os produtos</option>
+        {products.map((p) => (
+          <option key={p.id} value={p.id}>{p.active ? p.name : `${p.name} (pausado)`}</option>
+        ))}
+      </select>
+      <select aria-label="Filtrar campanha" value={filter.campaign} onChange={(e) => onFilter({ ...filter, campaign: e.target.value })}>
+        <option value="">Todas as campanhas</option>
+        {filter.campaign && !campaigns.includes(filter.campaign) && <option value={filter.campaign}>{filter.campaign}</option>}
+        {campaigns.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+      {(filter.productId || filter.campaign) && (
+        <button className="ghost" onClick={() => onFilter({ productId: '', campaign: '' })}>
+          <Icon name="close" size={14} /> Limpar filtros
+        </button>
+      )}
+      <span style={{ flex: 1 }} />
+      <button onClick={onAddSale}>
+        <Icon name="plus" size={15} /> Venda manual
+      </button>
+    </div>
   );
 }
 
@@ -123,27 +174,36 @@ function MetaConnection() {
   );
 }
 
-function Performance() {
+function Performance(props: PanelProps) {
+  const { filter, onFilter } = props;
   const db = useDb();
   const { period } = usePeriod();
   const [view, setView] = useState<'produto' | 'campanha'>('produto');
   const cur = db.settings.baseCurrency;
   const m = (v: number) => money(v, cur);
   const { t, p, products, campaigns } = useMemo(() => {
-    const f = { from: period.from, to: period.to };
+    const dims = { productId: filter.productId || undefined, campaign: filter.campaign || undefined };
+    const f = { from: period.from, to: period.to, ...dims };
     const prev = previousPeriod(period);
     return {
       t: computeTotals(db, f),
-      p: computeTotals(db, { from: prev.from, to: prev.to }),
+      p: computeTotals(db, { from: prev.from, to: prev.to, ...dims }),
       products: breakdown(db, f, 'productId'),
       campaigns: campaignBreakdown(db, f),
     };
-  }, [db, period]);
-  const unassigned = campaigns.filter((c) => !c.productId).reduce((a, c) => a + c.spend, 0);
+  }, [db, period, filter.productId, filter.campaign]);
+  const unassigned = campaigns.filter((c) => !c.productId).reduce((a, c) => a + c.ads, 0);
   const productName = (id: string) => db.products.find((x) => x.id === id)?.name ?? (id === '—' || !id ? 'Sem produto' : '—');
 
   return (
     <>
+      <Filters {...props} />
+      {filter.campaign && (
+        <p className="muted small" style={{ margin: '-4px 0 12px' }}>
+          Campanha "{filter.campaign}": entram os gastos dela e as vendas lançadas com o nome dela. Vendas por webhook não trazem a campanha, e
+          despesas fixas não entram (o lucro aqui é a margem da campanha).
+        </p>
+      )}
       <div className="grid mini-row">
         <MiniKpi label="Investido em ads" value={m(t.ads)} current={t.ads} previous={p.ads} inverse />
         <MiniKpi label="Faturamento bruto" value={m(t.gross)} current={t.gross} previous={p.gross} />
@@ -195,15 +255,17 @@ function Performance() {
             </p>
           </>
         ) : (
-          <CampaignTable rows={campaigns} productName={productName} money={m} />
+          <CampaignTable rows={campaigns} productName={productName} money={m} onPick={(campaign) => onFilter({ ...filter, campaign })} />
         )}
       </div>
     </>
   );
 }
 
-function CampaignTable({ rows, productName, money: m }: { rows: ReturnType<typeof campaignBreakdown>; productName: (id: string) => string; money: (v: number) => string }) {
-  if (!rows.length) return <div className="empty">Sem gasto no período.</div>;
+function CampaignTable(p: { rows: CampaignRow[]; productName: (id: string) => string; money: (v: number) => string; onPick: (campaign: string) => void }) {
+  const { rows, productName, money: m } = p;
+  if (!rows.length) return <div className="empty">Sem gasto nem vendas com campanha no período.</div>;
+  const opt = (v: number | null, f: (x: number) => string) => (v === null ? '—' : f(v));
   return (
     <>
       <div className="table-wrap">
@@ -213,39 +275,51 @@ function CampaignTable({ rows, productName, money: m }: { rows: ReturnType<typeo
               <th>Campanha</th>
               <th>Produto</th>
               <th className="num">Gasto</th>
-              <th className="num">Impressões</th>
+              <th className="num">Vendas</th>
+              <th className="num">Faturamento</th>
+              <th className="num">Lucro</th>
+              <th className="num">ROI</th>
+              <th className="num">ROAS</th>
+              <th className="num">CPA</th>
               <th className="num">Cliques</th>
               <th className="num">CTR</th>
               <th className="num">CPC</th>
-              <th className="num">CPM</th>
               <th className="num">Compras (pixel)</th>
-              <th className="num">CPA (pixel)</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={`${r.source}|${r.campaign}|${r.productId}`}>
+              <tr key={`${r.campaign}|${r.productId}`}>
                 <td>
-                  {r.campaign}
-                  {r.source !== 'Meta Ads' && <span className="muted small"> · {r.source}</span>}
+                  {r.campaign === '(sem campanha)' ? (
+                    r.campaign
+                  ) : (
+                    <button className="link" title="Filtrar por esta campanha" onClick={() => p.onPick(r.campaign)}>
+                      {r.campaign}
+                    </button>
+                  )}
+                  {r.source && r.source !== 'Meta Ads' && <span className="muted small"> · {r.source}</span>}
                 </td>
                 <td>{productName(r.productId)}</td>
-                <td className="num">{m(r.spend)}</td>
-                <td className="num">{r.impressions ? num(r.impressions) : '—'}</td>
+                <td className="num">{m(r.ads)}</td>
+                <td className="num">{r.units ? num(r.units) : '—'}</td>
+                <td className="num">{r.gross ? m(r.gross) : '—'}</td>
+                <td className={`num ${r.profit < 0 ? 'neg' : 'pos'}`}>{r.units ? m(r.profit) : '—'}</td>
+                <td className="num">{r.units ? pct(r.roi) : '—'}</td>
+                <td className="num">{r.units ? ratio(r.roas) : '—'}</td>
+                <td className="num">{opt(r.cpa, m)}</td>
                 <td className="num">{r.clicks ? num(r.clicks) : '—'}</td>
                 <td className="num">{pct(r.ctr, 2)}</td>
-                <td className="num">{r.cpc === null ? '—' : m(r.cpc)}</td>
-                <td className="num">{r.cpm === null ? '—' : m(r.cpm)}</td>
-                <td className="num">{r.purchases ? num(r.purchases) : '—'}</td>
-                <td className="num">{r.cpa === null ? '—' : m(r.cpa)}</td>
+                <td className="num">{opt(r.cpc, m)}</td>
+                <td className="num" title={r.pixelCpa === null ? undefined : `CPA do pixel: ${m(r.pixelCpa)}`}>{r.purchases ? num(r.purchases) : '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <p className="muted small" style={{ margin: '10px 0 0' }}>
-        Compras e CPA "pixel" são os números que a Meta informa. O lucro e o ROI reais ficam em "Por produto", calculados com as vendas que as
-        plataformas confirmaram.
+        Vendas, lucro e ROI da campanha vêm das vendas lançadas com o nome dela (botão "Venda manual"). Compras (pixel) é o que a Meta
+        informa. Clique numa campanha para filtrar a aba inteira por ela.
       </p>
     </>
   );

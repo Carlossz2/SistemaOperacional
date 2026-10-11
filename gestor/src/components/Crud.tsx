@@ -49,6 +49,8 @@ interface Props<T extends { id: string }> {
   locked?: (item: T) => string | null;
   /** Conteúdo entre o filtro de período e a tabela (ex.: painel de performance) */
   header?: ReactNode;
+  /** Filtro extra da lista (ex.: produto/campanha escolhidos no painel) */
+  filter?: (item: T) => boolean;
 }
 
 export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
@@ -61,12 +63,13 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
   const items = useMemo(() => {
     let list = all;
     if (props.byPeriod) list = list.filter((x) => !x.date || (x.date >= period.from && x.date <= period.to));
+    if (props.filter) list = list.filter(props.filter);
     if (q.trim() && props.search) {
       const needle = q.trim().toLowerCase();
       list = list.filter((x) => props.search!(x, db).toLowerCase().includes(needle));
     }
     return [...list].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [all, props.byPeriod, props.search, period, q, db]);
+  }, [all, props.byPeriod, props.search, props.filter, period, q, db]);
 
   const open = (d: Draft) => setDraft(d);
   const exportCsv = () => {
@@ -192,7 +195,7 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
   );
 }
 
-function EntryForm(p: {
+export function EntryForm(p: {
   title: string;
   fields: Field[];
   draft: Draft;
