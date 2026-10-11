@@ -28,7 +28,7 @@ export interface SecretStatus {
   has_access_token: boolean;
 }
 
-const SALES_PLATFORMS: PlatformKey[] = ['hotmart', 'cakto', 'lastlink', 'ggcheckout', 'perfectpay', 'generic'];
+export const SALES_PLATFORMS: PlatformKey[] = ['hotmart', 'cakto', 'lastlink', 'ggcheckout', 'perfectpay', 'generic'];
 export const fmtDateTime = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 const webhookUrl = (token: string) => `${getCloudConfig()?.url ?? ''}/functions/v1/webhook/${token}`;
 
@@ -50,6 +50,17 @@ export function useIntegrations() {
   }, []);
   useEffect(() => {
     void reload();
+    const sb = supabase();
+    const ch = sb
+      .channel(`integrations-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'integrations' }, () => void reload());
+    ch.subscribe();
+    // rede de segurança caso o tempo real caia
+    const timer = setInterval(() => void reload(), 60_000);
+    return () => {
+      clearInterval(timer);
+      void sb.removeChannel(ch);
+    };
   }, [reload]);
   return { list, secrets, reload, error, loaded };
 }
@@ -99,7 +110,7 @@ export function Integrations() {
       </div>
       {tab === 'conexoes' && <Connections />}
       {tab === 'eventos' && <Events />}
-      {tab === 'vendas' && <Transactions />}
+      {tab === 'vendas' && <ReceivedSales />}
       {tab === 'produtos' && <Aliases />}
     </>
   );
@@ -229,7 +240,7 @@ function SecretField(p: { integId: string; label: string; has: boolean; kind: 's
   );
 }
 
-function SalesIntegrationCard({ integ, secret, onChange }: { integ: Integration; secret?: SecretStatus; onChange: () => void }) {
+export function SalesIntegrationCard({ integ, secret, onChange }: { integ: Integration; secret?: SecretStatus; onChange: () => void }) {
   const db = useDb();
   const adapter = ADAPTERS[integ.platform as PlatformKey];
   const cfg = integ.config as { feePercent?: number; defaultCountry?: string; amountsInCents?: boolean; mapping?: GenericMapping };
@@ -672,11 +683,25 @@ const TX_STATUS: Record<string, { label: string; tone: string }> = {
   canceled: { label: 'Cancelada', tone: 'info' },
 };
 
-function Transactions() {
+/** Vendas individuais recebidas por webhook (ao vivo). Com `period`, só as do período. */
+export function ReceivedSales({ period }: { period?: { from: string; to: string } }) {
   const [rows, setRows] = useState<TxRow[]>([]);
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
   const [limit, setLimit] = useState(50);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const sb = supabase();
+    const ch = sb
+      .channel(`tx-live-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'webhook_events' }, () => setTick((t) => t + 1));
+    ch.subscribe();
+    const timer = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => {
+      clearInterval(timer);
+      void sb.removeChannel(ch);
+    };
+  }, []);
   useEffect(() => {
     let query = supabase()
       .from('transactions')
@@ -685,12 +710,13 @@ function Transactions() {
       .order('created_at', { ascending: false })
       .limit(limit);
     if (status) query = query.eq('status', status);
+    if (period) query = query.gte('sale_date', period.from).lte('sale_date', period.to);
     if (q.trim()) query = query.or(`external_id.ilike.%${q.trim()}%,buyer_email.ilike.%${q.trim()}%,product_name.ilike.%${q.trim()}%`);
     void query.then(({ data }) => setRows((data ?? []) as TxRow[]));
-  }, [status, q, limit]);
+  }, [status, q, limit, period?.from, period?.to, tick]);
 
   return (
-    <div className="card">
+    <div className="card mb">
       <div className="card-head">
         <h2>Vendas recebidas por webhook</h2>
         <div className="head-actions">

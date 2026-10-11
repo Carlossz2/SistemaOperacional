@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Crud, type Field } from '../components/Crud';
+import { RevenuePanel } from '../components/RevenuePanel';
 import { TrafficPanel } from '../components/TrafficPanel';
 import type { AdSpend, CapitalMove, Database, Expense, Product, Sale } from '../lib/types';
 import { adBase, saleGross, saleNet, toBase } from '../lib/metrics';
@@ -42,10 +43,11 @@ export function SalesPage() {
   return (
     <Crud<Sale>
       title="Receitas"
-      subtitle="Vendas aprovadas por dia, produto, plataforma e país. As recebidas por webhook entram sozinhas (🔒); as demais você lança aqui."
+      subtitle="Vendas das plataformas entram sozinhas, por webhook, na hora (🔒): aprovações, reembolsos e chargebacks. Lance aqui só o que não vem por webhook."
       collection="sales"
       locked={(s) => (s.origin === 'auto' ? `Recebida automaticamente (${s.platform}). Detalhes em Integrações → Vendas recebidas.` : null)}
       byPeriod
+      header={<RevenuePanel />}
       fields={fields}
       emptyHint={<NeedProduct />}
       blank={(db) => ({
