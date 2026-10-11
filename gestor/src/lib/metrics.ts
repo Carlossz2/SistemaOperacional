@@ -241,3 +241,43 @@ export function earliestDate(db: Database): string | undefined {
   const dates = [...db.sales, ...db.ads, ...db.expenses, ...db.capital].map((x) => x.date).sort();
   return dates[0];
 }
+
+export interface CampaignRow {
+  campaign: string;
+  source: string;
+  productId: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  /** Compras informadas pelo pixel da Meta (podem divergir das vendas reais) */
+  purchases: number;
+  ctr: number | null;
+  cpc: number | null;
+  cpm: number | null;
+  /** Gasto ÷ compras do pixel */
+  cpa: number | null;
+}
+
+/** Gasto e métricas de entrega por campanha no período (métricas vêm da Meta; manuais só têm gasto). */
+export function campaignBreakdown(db: Database, f: Filter): CampaignRow[] {
+  const rows = new Map<string, Omit<CampaignRow, 'ctr' | 'cpc' | 'cpm' | 'cpa'>>();
+  for (const a of db.ads.filter((x) => matchAd(x, f))) {
+    const campaign = a.campaign?.trim() || '(sem campanha)';
+    const key = `${a.source}|${campaign}|${a.productId}`;
+    const r = rows.get(key) ?? { campaign, source: a.source, productId: a.productId, spend: 0, impressions: 0, clicks: 0, purchases: 0 };
+    r.spend += adBase(a);
+    r.impressions += Number(a.metrics?.impressions) || 0;
+    r.clicks += Number(a.metrics?.clicks) || 0;
+    r.purchases += Number(a.metrics?.purchases) || 0;
+    rows.set(key, r);
+  }
+  return [...rows.values()]
+    .map((r) => ({
+      ...r,
+      ctr: div(r.clicks, r.impressions),
+      cpc: div(r.spend, r.clicks),
+      cpm: r.impressions ? (r.spend / r.impressions) * 1000 : null,
+      cpa: div(r.spend, r.purchases),
+    }))
+    .sort((a, b) => b.spend - a.spend);
+}

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Crud, type Field } from '../components/Crud';
+import { TrafficPanel } from '../components/TrafficPanel';
 import type { AdSpend, CapitalMove, Database, Expense, Product, Sale } from '../lib/types';
 import { adBase, saleGross, saleNet, toBase } from '../lib/metrics';
 import { money, num, shortDate } from '../lib/format';
@@ -88,10 +89,11 @@ export function AdsPage() {
   return (
     <Crud<AdSpend>
       title="Tráfego pago"
-      subtitle="Investimento em anúncios por dia, fonte, produto e país. Os gastos da Meta sincronizados entram sozinhos (🔒)."
+      subtitle="Gasto em anúncios × vendas reais: lucro, ROAS, CPA e ROI por produto e campanha. Os gastos da Meta entram sozinhos, de hora em hora (🔒)."
       collection="ads"
       locked={(a) => (a.origin === 'meta' ? 'Sincronizado da Meta Ads. Para mudar o produto, ajuste as regras em Integrações e sincronize de novo.' : null)}
       byPeriod
+      header={<TrafficPanel />}
       emptyHint={<NeedProduct />}
       fields={[
         { key: 'date', label: 'Data', type: 'date', required: true },
