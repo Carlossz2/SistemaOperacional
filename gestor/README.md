@@ -1,4 +1,4 @@
-# Gestor DR — controle financeiro da operação de Direct Response
+# CADIGITAL — controle financeiro da operação de Direct Response
 
 Micro SaaS de uso próprio para controlar uma operação de infoprodutos/DR vendendo no Brasil e no exterior:
 faturamento, taxas, reembolsos, tráfego pago, despesas, impostos, lucro, ROAS/ROI/CPA, caixa e capital — tudo
@@ -48,7 +48,7 @@ npm run build      # gera gestor/dist (site estático)
 
 ## App instalável (PWA)
 
-O Gestor DR é um PWA: pode ser instalado no computador (Chrome/Edge) e no celular (Android e iPhone), com ícone
+O CADIGITAL é um PWA: pode ser instalado no computador (Chrome/Edge) e no celular (Android e iPhone), com ícone
 próprio, janela própria e funcionamento **offline**.
 
 - **Computador / Android**: abra o endereço publicado e clique em *Instalar* (ícone na barra de endereço, botão
@@ -64,7 +64,7 @@ Vercel ou Netlify servem.
 - **CI**: todo push/PR que mexe em `gestor/` roda typecheck, testes e build (`.github/workflows/gestor-ci.yml`).
 - **GitHub Pages**: em *Settings → Pages* escolha *Source: GitHub Actions*. Depois disso, todo push na branch
   principal que altere `gestor/` publica o app automaticamente (ou rode o workflow
-  *“Gestor DR — Publicar no GitHub Pages”* na aba *Actions*). Endereço: `https://<usuario>.github.io/<repositorio>/`.
+  *“CADIGITAL — Publicar no GitHub Pages”* na aba *Actions*). Endereço: `https://<usuario>.github.io/<repositorio>/`.
   (Pages em repositório privado exige plano pago do GitHub.)
 - **Vercel/Netlify** (alternativa grátis com repositório privado): importe o repositório, *Root directory* = `gestor`,
   build `npm run build`, saída `dist`.

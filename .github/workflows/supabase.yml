@@ -1,4 +1,4 @@
-name: Gestor DR — Backend (Supabase)
+name: CADIGITAL — Backend (Supabase)
 
 # Testa o banco e as funções a cada alteração. Na branch principal, depois dos testes,
 # aplica as migrações e publica as Edge Functions no seu projeto Supabase.

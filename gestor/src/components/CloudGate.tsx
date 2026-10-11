@@ -229,7 +229,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
           <span className="brand-logo">
             <Icon name="logo" size={16} />
           </span>
-          <b>Gestor DR</b>
+          <b>CADIGITAL</b>
         </div>
         <h1>{title}</h1>
         <p className="muted" style={{ margin: '6px 0 18px' }}>

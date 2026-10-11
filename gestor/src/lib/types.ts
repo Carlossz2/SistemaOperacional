@@ -1,4 +1,4 @@
-// Modelo de dados do Gestor DR.
+// Modelo de dados do CADIGITAL.
 // Todo lançamento em moeda estrangeira guarda a cotação usada no dia (`rate`),
 // para que relatórios antigos não mudem quando o câmbio muda.
 

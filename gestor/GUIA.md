@@ -1,4 +1,4 @@
-# Guia de configuração — Gestor DR (Supabase + GitHub)
+# Guia de configuração — CADIGITAL (Supabase + GitHub)
 
 Siga na ordem. Tempo estimado: 30–40 minutos. Nenhum passo exige instalar nada no seu computador.
 
@@ -43,8 +43,8 @@ Depois: **Settings → Pages → Source: GitHub Actions**.
 
 Com o código na branch principal do repositório, dois processos rodam sozinhos (aba **Actions**):
 
-- **Gestor DR — Backend (Supabase):** testa tudo, cria as tabelas, regras de segurança e funções no seu projeto.
-- **Gestor DR — Publicar no GitHub Pages:** publica o app em `https://<usuario>.github.io/<repositorio>/`.
+- **CADIGITAL — Backend (Supabase):** testa tudo, cria as tabelas, regras de segurança e funções no seu projeto.
+- **CADIGITAL — Publicar no GitHub Pages:** publica o app em `https://<usuario>.github.io/<repositorio>/`.
 
 Se algum aparecer em vermelho, abra-o e veja o passo que falhou (geralmente um segredo digitado errado). Dá para rodar de novo pelo botão *Run workflow*.
 

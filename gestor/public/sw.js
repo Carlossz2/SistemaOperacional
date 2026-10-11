@@ -1,4 +1,4 @@
-// Service worker do Gestor DR: abre offline e atualiza sozinho quando há versão nova.
+// Service worker do CADIGITAL: abre offline e atualiza sozinho quando há versão nova.
 // Páginas: rede primeiro (pega a versão nova), cache se estiver offline.
 // Arquivos estáticos (JS/CSS com hash, ícones, fontes): cache primeiro.
 // __BUILD_ID__ é trocado a cada build: um sw.js diferente faz o navegador instalar a versão nova.

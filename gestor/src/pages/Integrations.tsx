@@ -817,7 +817,7 @@ function Aliases() {
               <th>Plataforma</th>
               <th>Produto na plataforma</th>
               <th>ID externo</th>
-              <th>Produto no Gestor</th>
+              <th>Produto na CADIGITAL</th>
             </tr>
           </thead>
           <tbody>
