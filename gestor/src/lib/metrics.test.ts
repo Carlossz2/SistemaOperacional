@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breakdown, campaignBreakdown, campaignNames, capitalSummary, spendBreakdown, weeklySummary, weekToDate, computeTotals, expandExpenses, timeSeries } from './metrics';
+import { breakdown, campaignBreakdown, campaignNames, capitalSummary, spendBreakdown, costSummary, autoGrouping, computeTotals, expandExpenses, timeSeries } from './metrics';
 import { emptyDb } from './store';
 import { previousPeriod, resolvePreset, weekStart } from './dates';
 import type { Database, Expense } from './types';
@@ -148,21 +148,44 @@ describe('semana a semana', () => {
   });
   it('agrupa por semana, da mais recente para a mais antiga', () => {
     const d = db(); // vendas e ads em 10 e 11/01 (sáb/dom), despesa em 05/01 (seg): mesma semana
-    const w = weeklySummary(d, 3, '2026-01-14');
-    expect(w.map((x) => [x.from, x.to, x.current])).toEqual([
-      ['2026-01-12', '2026-01-14', true],
-      ['2026-01-05', '2026-01-11', false],
-      ['2025-12-29', '2026-01-04', false],
+    const w = costSummary(d, { from: '2025-12-29', to: '2026-01-14' }, 'week', '2026-01-14');
+    expect(w.map((x) => [x.from, x.to, x.current, x.partial])).toEqual([
+      ['2026-01-12', '2026-01-14', true, true],
+      ['2026-01-05', '2026-01-11', false, false],
+      ['2025-12-29', '2026-01-04', false, false],
     ]);
     expect(w[1].spend).toBe(650 + 100);
     expect(w[1].deductions).toBe(150 + 100 + 125);
     expect(w[1].totals.profit).toBe(375);
     expect(w[0].spend).toBe(0);
   });
-  it('semana atual × mesmo trecho da semana passada', () => {
-    const r = weekToDate(db(), '2026-01-13'); // terça
-    expect([r.current.from, r.current.to, r.previous.from, r.previous.to]).toEqual(['2026-01-12', '2026-01-13', '2026-01-05', '2026-01-06']);
-    expect(r.previous.spend).toBe(100); // só a despesa de segunda
+  it('corta as pontas no período e agrupa por mês ou dia', () => {
+    const d = db();
+    const m = costSummary(d, { from: '2025-12-15', to: '2026-02-10' }, 'month', '2026-03-01');
+    expect(m.map((x) => [x.from, x.to, x.partial, x.current])).toEqual([
+      ['2026-02-01', '2026-02-10', true, false],
+      ['2026-01-01', '2026-01-31', false, false],
+      ['2025-12-15', '2025-12-31', true, false],
+    ]);
+    expect(m[1].totals.profit).toBe(375);
+    const days = costSummary(d, { from: '2026-01-09', to: '2026-01-11' }, 'day');
+    expect(days.map((x) => x.from)).toEqual(['2026-01-11', '2026-01-10', '2026-01-09']);
+    expect(days.reduce((a, x) => a + x.spend, 0)).toBe(650);
+  });
+  it('a soma dos trechos bate com o total do período (todas as quebras)', () => {
+    const d = db();
+    const f = { from: '2025-11-20', to: '2026-01-20' };
+    const total = computeTotals(d, f);
+    for (const g of ['day', 'week', 'month'] as const) {
+      const rows = costSummary(d, f, g);
+      expect(rows.reduce((a, x) => a + x.totals.profit, 0)).toBeCloseTo(total.profit);
+      expect(rows.reduce((a, x) => a + x.spend, 0)).toBeCloseTo(total.ads + total.expenses);
+    }
+  });
+  it('agrupamento automático pelo tamanho do período', () => {
+    expect(autoGrouping('2026-01-01', '2026-01-14')).toBe('day');
+    expect(autoGrouping('2026-01-01', '2026-03-31')).toBe('week');
+    expect(autoGrouping('2025-01-01', '2026-01-01')).toBe('month');
   });
   it('para onde foi o dinheiro', () => {
     const b = spendBreakdown(db(), { from: '2026-01-01', to: '2026-01-31' });
@@ -198,6 +221,6 @@ describe('impostos: CNPJ e Meta', () => {
     const byProduct = breakdown(d, f, 'productId');
     expect(byProduct.find((r) => r.key === 'p1')!.adTax).toBeCloseTo(40);
     expect(timeSeries(d, f).points.at(-1)!.cumulative).toBeCloseTo(total);
-    expect(weeklySummary(d, 1, '2026-01-11')[0].totals.profit).toBeCloseTo(total);
+    expect(costSummary(d, f, 'week').reduce((a, w) => a + w.totals.profit, 0)).toBeCloseTo(total);
   });
 });

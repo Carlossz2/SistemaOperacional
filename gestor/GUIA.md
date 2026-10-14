@@ -114,7 +114,7 @@ Em **Configurações → Impostos**:
 - **Imposto do CNPJ (%)**: a alíquota do seu regime (ex.: Simples Nacional), calculada sobre a receita líquida ou o faturamento bruto.
 - **Impostos da Meta sobre anúncios (%)**: no Brasil a Meta cobra impostos além do valor dos anúncios (PIS/COFINS e ISS; IOF se o cartão for internacional). Confira o percentual na sua fatura da Meta e informe aqui.
 
-Os dois entram no lucro, no ROI, no DRE e na aba Semana a semana.
+Os dois entram no lucro, no ROI, no DRE e na aba Controle de custos.
 
 ## 9. Conectar a conta Mercado Pago (banco da empresa)
 
