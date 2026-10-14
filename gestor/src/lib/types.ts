@@ -99,7 +99,11 @@ export interface Settings {
   platforms: string[];
   adSources: string[];
   expenseCategories: string[];
+  /** Visual do Dashboard: padrão ou terminal de mercado financeiro */
+  dashboardTemplate?: DashboardTemplate;
 }
+
+export type DashboardTemplate = 'default' | 'market';
 
 export interface Database {
   version: 1;

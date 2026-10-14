@@ -176,6 +176,7 @@ export function computeTotals(db: Database, f: Filter): Totals {
 
 export interface SeriesPoint {
   key: string; // dia (AAAA-MM-DD) ou mês (AAAA-MM)
+  gross: number;
   net: number;
   ads: number;
   expenses: number;
@@ -209,8 +210,8 @@ export function timeSeries(
   for (const o of expenses) map.get(bucket(o.date))!.expenses += o.amount;
   let cumulative = 0;
   const points = keys.map((key) => {
-    const { gross, adTax, ...b } = map.get(key)!;
-    const tax = companyTax(gross, b.net, db.settings) + adTax;
+    const { adTax, ...b } = map.get(key)!;
+    const tax = companyTax(b.gross, b.net, db.settings) + adTax;
     const profit = b.net - b.ads - b.expenses - tax;
     cumulative += profit;
     return { key, ...b, tax, profit, cumulative };
