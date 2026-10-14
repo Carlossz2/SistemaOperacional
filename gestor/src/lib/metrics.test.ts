@@ -88,14 +88,14 @@ describe('breakdown e séries', () => {
     expect(s.points).toHaveLength(31);
     expect(s.points.at(-1)!.cumulative).toBeCloseTo(computeTotals(d, f).profit);
   });
-  it('caixa = aportes + lucro acumulado − retiradas − investimentos', () => {
+  it('caixa manual = aportes − retiradas − investimentos (independe do lucro)', () => {
     const d = db();
     d.capital = [
       { id: 'c1', date: '2026-01-01', kind: 'aporte', description: '', currency: 'BRL', rate: 1, amount: 1000 },
       { id: 'c2', date: '2026-01-20', kind: 'retirada', description: '', currency: 'BRL', rate: 1, amount: 200 },
     ];
     const c = capitalSummary(d, { from: '2026-01-01', to: '2026-01-31' });
-    expect(c.cash).toBeCloseTo(1000 + 375 - 200);
+    expect(c.cash).toBeCloseTo(1000 - 200);
   });
 });
 

@@ -19,7 +19,6 @@ export const MP_COLUMNS = [
   'GROSS_AMOUNT',
   'MP_FEE_AMOUNT',
   'BALANCE_AMOUNT',
-  'PAYMENT_METHOD',
 ];
 
 // ------------------------------------------------------------------ CSV
@@ -131,13 +130,25 @@ export interface MovementCtx {
   timezone: string;
 }
 
-/** Converte as linhas do relatório em movimentações (ignora totais e linhas zeradas). */
-export function toMovements(rows: Record<string, string>[], ctx: MovementCtx): { movements: BankMovement[]; unknownColumns: boolean } {
+/**
+ * Converte as linhas do relatório em movimentações (ignora totais e linhas zeradas).
+ * `initial`: saldo disponível no início do relatório (linha initial_available_balance), quando vier.
+ */
+export function toMovements(
+  rows: Record<string, string>[],
+  ctx: MovementCtx,
+): { movements: BankMovement[]; unknownColumns: boolean; initial: { date: string; balance: number } | null } {
   const unknownColumns = rows.length > 0 && !('NET_CREDIT_AMOUNT' in rows[0] || 'NET_DEBIT_AMOUNT' in rows[0]);
   const movements: BankMovement[] = [];
+  let initial: { date: string; balance: number } | null = null;
   for (const r of rows) {
     const recordType = r.RECORD_TYPE ?? '';
-    if (recordType && SUMMARY.test(recordType)) continue;
+    if (recordType && SUMMARY.test(recordType)) {
+      const occurred = parseDate(r.DATE, ctx.timezone);
+      const balance = amount(r.BALANCE_AMOUNT);
+      if (!initial && /initial/i.test(recordType) && occurred && balance !== null) initial = { date: dayIn(occurred, ctx.timezone), balance };
+      continue;
+    }
     const credit = Math.abs(amount(r.NET_CREDIT_AMOUNT) ?? 0);
     const debit = Math.abs(amount(r.NET_DEBIT_AMOUNT) ?? 0);
     const net = Math.round((credit - debit) * 100) / 100;
@@ -165,29 +176,37 @@ export function toMovements(rows: Record<string, string>[], ctx: MovementCtx): {
       raw: r,
     });
   }
-  return { movements, unknownColumns };
+  return { movements, unknownColumns, initial };
 }
 
 // ------------------------------------------------------------------ API
 export const mpBase = () => (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get('MP_API_BASE') || 'https://api.mercadopago.com';
 
-export function mpError(status: number, body: unknown): string {
+export function mpError(status: number, body: unknown, step = ''): string {
   const msg = (body as { message?: string; error?: string })?.message ?? (body as { error?: string })?.error ?? '';
   if (status === 401 || status === 403) return 'Token do Mercado Pago inválido ou sem permissão. Gere um Access Token de produção novo e salve de novo.';
   if (status === 429) return 'Mercado Pago pediu para esperar (muitas chamadas). Tente de novo em alguns minutos.';
-  return `Mercado Pago respondeu ${status}${msg ? `: ${msg}` : ''}`;
+  return `Mercado Pago respondeu ${status}${msg ? `: ${msg}` : ''}${step ? ` (${step})` : ''}`;
 }
 
 export class MercadoPago {
   constructor(private token: string, private base = mpBase()) {}
 
+  /** Chamada à API; erro 5xx do Mercado Pago (instabilidade) é tentado de novo uma vez. */
   private async call(method: string, path: string, body?: unknown): Promise<{ status: number; data: unknown; text: string }> {
-    const res = await fetch(`${this.base}${path}`, {
-      method,
-      headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
-    });
+    const send = () =>
+      fetch(`${this.base}${path}`, {
+        method,
+        headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(30000),
+      });
+    let res = await send();
+    if (res.status >= 500) {
+      await res.body?.cancel();
+      await new Promise((r) => setTimeout(r, 1500));
+      res = await send();
+    }
     const text = await res.text();
     let data: unknown = null;
     try {
@@ -202,28 +221,32 @@ export class MercadoPago {
   async ensureConfig(timezone: string): Promise<void> {
     const got = await this.call('GET', '/v1/account/release_report/config');
     if (got.status === 200) return;
-    if (got.status !== 404) throw new Error(mpError(got.status, got.data));
+    if (got.status !== 404) throw new Error(mpError(got.status, got.data, 'ao ler a configuração do relatório'));
+    // campos como no exemplo oficial (developers > Relatórios > Dinheiro liberado > Gerar via API)
     const created = await this.call('POST', '/v1/account/release_report/config', {
       file_name_prefix: 'cadigital',
-      include_withdraw: true,
+      include_withdrawal_at_end: true,
       execute_after_withdrawal: false,
       display_timezone: timezone === 'America/Sao_Paulo' ? 'GMT-03' : 'GMT-00',
       report_translation: 'en',
       separator: ';',
+      // geração automática desligada: o sistema pede o relatório quando precisa
+      scheduled: false,
+      frequency: { hour: 0, type: 'monthly', value: 1 },
       columns: MP_COLUMNS.map((key) => ({ key })),
     });
-    if (created.status >= 300) throw new Error(mpError(created.status, created.data));
+    if (created.status >= 300) throw new Error(mpError(created.status, created.data, 'ao criar a configuração do relatório'));
   }
 
   /** Pede um relatório do período (gerado em segundo plano pelo Mercado Pago). */
   async requestReport(begin: string, end: string): Promise<void> {
     const r = await this.call('POST', '/v1/account/release_report', { begin_date: `${begin}T00:00:00Z`, end_date: `${end}T23:59:59Z` });
-    if (r.status >= 300) throw new Error(mpError(r.status, r.data));
+    if (r.status >= 300) throw new Error(mpError(r.status, r.data, 'ao pedir o relatório'));
   }
 
   async listReports(): Promise<{ file_name: string; status?: string; date_created?: string }[]> {
     const r = await this.call('GET', '/v1/account/release_report/list');
-    if (r.status >= 300) throw new Error(mpError(r.status, r.data));
+    if (r.status >= 300) throw new Error(mpError(r.status, r.data, 'ao listar os relatórios'));
     return Array.isArray(r.data) ? (r.data as { file_name: string }[]).filter((x) => typeof x?.file_name === 'string') : [];
   }
 
@@ -231,7 +254,7 @@ export class MercadoPago {
   async download(fileName: string): Promise<string | null> {
     const r = await this.call('GET', `/v1/account/release_report/${encodeURIComponent(fileName)}`);
     if (r.status === 404 || r.status === 202) return null;
-    if (r.status >= 300) throw new Error(mpError(r.status, r.data));
+    if (r.status >= 300) throw new Error(mpError(r.status, r.data, 'ao baixar o relatório'));
     return r.text;
   }
 }

@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { updateSettings, useDb } from '../lib/store';
 import { FilterBar, FilterNote, usePeriod } from '../lib/period';
 import { previousPeriod, type PresetKey } from '../lib/dates';
-import { capitalSummary, computeTotals, timeSeries, type Filter, type Totals } from '../lib/metrics';
+import { computeTotals, timeSeries, type Filter, type Totals } from '../lib/metrics';
+import { useCash } from '../lib/cloud/cash';
 import { money, num, pct, ratio, shortDate } from '../lib/format';
 import { download, toCsv } from '../lib/io';
 import { HeroKpi, MiniKpi } from '../components/Kpi';
@@ -42,19 +43,17 @@ export function Dashboard() {
       p: computeTotals(db, prevF),
       series: timeSeries(db, f),
       flow: timeSeries(db, f),
-      capital: capitalSummary(db, f),
-      prevCapital: capitalSummary(db, prevF),
     };
   }, [db, f, period]);
 
   const empty = !db.sales.length && !db.ads.length && !db.expenses.length;
-  const { t, p, capital } = data;
+  const { t, p } = data;
+  // caixa = dinheiro de verdade (conta Mercado Pago ou lançamentos de Caixa & capital), separado de faturamento e lucro
+  const cash = useCash(period.from, period.to, previousPeriod(period).to);
+  const moved = cash.inflow + cash.outflow;
   const m = (v: number) => money(v, cur);
   const costs = totalCosts(t);
   const prevCosts = totalCosts(p);
-  const generated = db.capital.filter((c) => c.kind === 'aporte' && c.date <= period.to).reduce((a, c) => a + c.amount * c.rate, 0) +
-    Math.max(0, capital.accumulatedProfit);
-
   const exportCsv = () => {
     const rows = data.series.points.map((pt) => ({
       Periodo: pt.key,
@@ -120,7 +119,7 @@ export function Dashboard() {
       )}
 
       {template === 'market' ? (
-        <MarketDashboard db={db} f={f} period={period} t={t} p={p} cash={capital.cash} prevCash={data.prevCapital.cash} currency={cur} />
+        <MarketDashboard db={db} f={f} period={period} t={t} p={p} cash={cash.value} prevCash={cash.prev} currency={cur} />
       ) : (
         <>
         <div className="grid hero-row">
@@ -160,16 +159,26 @@ export function Dashboard() {
             title="Receita líquida − ads − despesas − impostos. Barra: margem líquida"
           />
           <HeroKpi
-            label="Caixa estimado"
+            label={cash.source === 'mercadopago' ? 'Caixa (Mercado Pago)' : 'Caixa'}
             icon="wallet"
             color="var(--series-5)"
-            value={m(capital.cash)}
-            negative={capital.cash < 0}
-            fill={generated ? capital.cash / generated : 0}
-            fillLabel={`${pct(generated ? capital.cash / generated : null, 0)} do gerado`}
-            current={capital.cash}
-            previous={data.prevCapital.cash}
-            title="Aportes + lucro acumulado − retiradas − investimentos. Barra: quanto do capital gerado continua em caixa"
+            value={cash.value === null ? '—' : m(cash.value)}
+            negative={cash.value !== null && cash.value < 0}
+            fill={moved ? cash.inflow / moved : 0}
+            fillLabel={
+              moved
+                ? `${pct(cash.inflow / moved, 0)} do movimento foi entrada`
+                : cash.source === 'mercadopago' && cash.startDate && cash.value === null
+                  ? `controle desde ${shortDate(cash.startDate)}`
+                  : 'sem movimento no período'
+            }
+            current={cash.value}
+            previous={cash.prev}
+            title={
+              cash.source === 'mercadopago'
+                ? `Saldo da conta Mercado Pago no fim do período (controle desde ${shortDate(cash.startDate ?? '')}). Não depende de vendas nem de lucro. Barra: entradas ÷ (entradas + saídas) no período.`
+                : 'Aportes − retiradas − investimentos (aba Caixa & capital). Não depende de vendas nem de lucro. Barra: entradas ÷ (entradas + saídas) no período.'
+            }
           />
         </div>
 

@@ -172,6 +172,12 @@ const fakeMp = async (req: Request, path: string): Promise<Response> => {
   if (req.headers.get('authorization') !== 'Bearer mp-bom') return json({ message: 'invalid access token' }, 401);
   if (path === 'v1/account/release_report/config') {
     if (req.method === 'POST') {
+      // como a API real: configuração fora do formato documentado falha (500 visto em produção sem "frequency")
+      const body = await req.json().catch(() => ({}));
+      const keys = Array.isArray(body.columns) ? body.columns.map((c: { key?: string }) => c.key) : [];
+      if (!body.frequency || typeof body.include_withdrawal_at_end !== 'boolean' || !keys.includes('NET_CREDIT_AMOUNT')) {
+        return json({ message: 'Internal Server Error' }, 500);
+      }
       mp.config = true;
       return json({ file_name_prefix: 'cadigital' }, 201);
     }

@@ -29,7 +29,7 @@ ROAS              = Bruto ÷ Ads          (ROAS líquido = Líquido ÷ Ads)
 ROI               = Lucro ÷ (Ads + Despesas)
 CPA               = Ads ÷ Nº de vendas
 Margem            = Lucro ÷ Bruto
-Caixa estimado    = Aportes + Lucro acumulado − Retiradas − Investimentos
+Caixa             = saldo da conta Mercado Pago (desde o início do controle) ou, sem banco, Aportes − Retiradas − Investimentos
 ```
 
 - Com filtro de **produto**, entram só as despesas atribuídas a ele. Com filtro de **país** (ou nas quebras por
