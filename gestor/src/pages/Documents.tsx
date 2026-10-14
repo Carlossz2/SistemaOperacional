@@ -6,6 +6,7 @@ import { supabase } from '../lib/cloud/sync';
 import { today } from '../lib/dates';
 import { money, num, shortDate } from '../lib/format';
 import { isCloudActive, useDb } from '../lib/store';
+import { backupIndex, backupNames } from '../lib/docBackup';
 
 // Documentos da empresa: arquivo no Storage privado (bucket "documents", pasta = usuário) + dados na tabela documents.
 
@@ -24,6 +25,7 @@ interface Doc {
   size: number;
   mime: string;
   created_at: string;
+  deleted_at: string | null;
 }
 
 const fmtSize = (b: number) => (b >= 1024 * 1024 ? `${num(b / 1024 / 1024, 1)} MB` : `${num(Math.max(1, Math.round(b / 1024)))} KB`);
@@ -36,6 +38,14 @@ const safeName = (f: string) =>
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/-+/g, '-')
     .slice(-120) || 'arquivo';
+const LAST_BACKUP = 'cadigital.docs.lastBackup';
+const readLastBackup = () => {
+  try {
+    return localStorage.getItem(LAST_BACKUP) ?? '';
+  } catch {
+    return '';
+  }
+};
 const kindIcon = (mime: string) => (mime.includes('pdf') ? 'PDF' : mime.startsWith('image/') ? 'IMG' : /sheet|excel|csv/.test(mime) ? 'XLS' : /word|document/.test(mime) ? 'DOC' : 'ARQ');
 
 export function Documents() {
@@ -69,6 +79,8 @@ function CloudDocuments() {
   const [year, setYear] = useState('');
   const [editing, setEditing] = useState<Doc | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [trash, setTrash] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const load = useCallback(async () => {
     const all: Doc[] = [];
@@ -88,14 +100,17 @@ function CloudDocuments() {
     void load();
   }, [load]);
 
-  const years = useMemo(() => [...new Set(docs.map((d) => d.date.slice(0, 4)))].sort().reverse(), [docs]);
+  const active = useMemo(() => docs.filter((d) => !d.deleted_at), [docs]);
+  const trashed = useMemo(() => docs.filter((d) => d.deleted_at), [docs]);
+  const shown = trash ? trashed : active;
+  const years = useMemo(() => [...new Set(shown.map((d) => d.date.slice(0, 4)))].sort().reverse(), [shown]);
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return docs.filter(
+    return shown.filter(
       (d) => (!cat || d.category === cat) && (!year || d.date.startsWith(year)) && (!needle || `${d.name} ${d.notes ?? ''} ${d.path}`.toLowerCase().includes(needle)),
     );
-  }, [docs, q, cat, year]);
-  const totalSize = docs.reduce((a, d) => a + d.size, 0);
+  }, [shown, q, cat, year]);
+  const totalSize = active.reduce((a, d) => a + d.size, 0);
 
   const open = async (d: Doc, download: boolean) => {
     // abre a aba já no clique (senão o bloqueador de pop-up barra) e aponta para o link de 60 s quando ficar pronto
@@ -110,12 +125,11 @@ function CloudDocuments() {
     else window.location.assign(data.signedUrl);
   };
 
-  const removeDoc = async (d: Doc) => {
-    if (!confirm(`Excluir "${d.name}"? O arquivo é apagado de vez.`)) return;
-    const { error: e1 } = await supabase().storage.from(BUCKET).remove([d.path]);
-    if (e1) return alert(`Não foi possível apagar o arquivo: ${e1.message}`);
-    const { error: e2 } = await supabase().from('documents').delete().eq('id', d.id);
-    if (e2) alert(e2.message);
+  // nada é apagado de vez: "Excluir" manda para a lixeira (o banco nem permite apagar o documento ou o arquivo)
+  const setDeleted = async (d: Doc, deleted: boolean) => {
+    const { error: e } = await supabase().from('documents').update({ deleted_at: deleted ? new Date().toISOString() : null }).eq('id', d.id);
+    if (e) return alert(e.message);
+    setNotice(deleted ? `"${d.name}" foi para a lixeira. Dá para restaurar quando quiser.` : `"${d.name}" restaurado.`);
     await load();
   };
 
@@ -128,6 +142,8 @@ function CloudDocuments() {
         </div>
       </div>
 
+      <BackupCard docs={docs} />
+
       <Upload busy={uploading} setBusy={setUploading} onDone={load} />
 
       <div className="card">
@@ -136,10 +152,13 @@ function CloudDocuments() {
             <span className="icon-box"><Icon name="file" size={17} /></span>
             <h2>Arquivos</h2>
             <span className="muted small">
-              {num(docs.length)} documento(s) · {fmtSize(totalSize)}
+              {trash ? `${num(trashed.length)} na lixeira` : `${num(active.length)} documento(s) · ${fmtSize(totalSize)}`}
             </span>
           </div>
           <div className="head-actions">
+            <button className={trash ? 'primary' : ''} onClick={() => setTrash(!trash)} aria-pressed={trash}>
+              <Icon name="trash" size={15} /> {trash ? 'Voltar aos documentos' : `Lixeira (${num(trashed.length)})`}
+            </button>
             <label className="search">
               <Icon name="search" size={15} />
               <input placeholder="Buscar documento" aria-label="Buscar documento" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -159,6 +178,12 @@ function CloudDocuments() {
           </div>
         </div>
         {error && <p className="form-error">{error}</p>}
+        {notice && (
+          <p className="small" role="status">
+            {notice}
+          </p>
+        )}
+        {trash && <p className="muted small">Documentos na lixeira continuam guardados (arquivo e dados) e entram na cópia de segurança. Restaure quando quiser.</p>}
         <div className="table-wrap">
           <table>
             <thead>
@@ -190,24 +215,105 @@ function CloudDocuments() {
                       <button className="ghost" title="Baixar" aria-label={`Baixar ${d.name}`} onClick={() => void open(d, true)}>
                         <Icon name="download" size={16} />
                       </button>
-                      <button className="ghost" title="Editar" aria-label={`Editar ${d.name}`} onClick={() => setEditing(d)}>
-                        <Icon name="edit" size={16} />
-                      </button>
-                      <button className="ghost danger" title="Excluir" aria-label={`Excluir ${d.name}`} onClick={() => void removeDoc(d)}>
-                        <Icon name="trash" size={16} />
-                      </button>
+                      {trash ? (
+                        <button className="ghost" title="Restaurar" aria-label={`Restaurar ${d.name}`} onClick={() => void setDeleted(d, false)}>
+                          <Icon name="refresh" size={16} />
+                        </button>
+                      ) : (
+                        <>
+                          <button className="ghost" title="Editar" aria-label={`Editar ${d.name}`} onClick={() => setEditing(d)}>
+                            <Icon name="edit" size={16} />
+                          </button>
+                          <button className="ghost danger" title="Mover para a lixeira" aria-label={`Excluir ${d.name}`} onClick={() => void setDeleted(d, true)}>
+                            <Icon name="trash" size={16} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {loaded && !rows.length && <div className="empty">{docs.length ? 'Nenhum documento com esse filtro.' : 'Nenhum documento ainda. Envie o primeiro acima.'}</div>}
+          {loaded && !rows.length && <div className="empty">{trash ? (trashed.length ? 'Nenhum documento com esse filtro.' : 'A lixeira está vazia.') : active.length ? 'Nenhum documento com esse filtro.' : 'Nenhum documento ainda. Envie o primeiro acima.'}</div>}
         </div>
       </div>
 
       {editing && <EditDoc doc={editing} onClose={() => setEditing(null)} onSaved={load} />}
     </>
+  );
+}
+
+/** Cópia de segurança: baixa todos os arquivos (inclusive da lixeira) num ZIP organizado por categoria, com índice. */
+function BackupCard({ docs }: { docs: Doc[] }) {
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState('');
+  const [last, setLast] = useState(readLastBackup);
+
+  const run = async () => {
+    if (!docs.length) return;
+    setMsg('');
+    const names = backupNames(docs);
+    const files: Record<string, Uint8Array> = {};
+    const missing = new Set<string>();
+    for (let i = 0; i < docs.length; i++) {
+      setBusy(`Baixando ${i + 1} de ${docs.length}…`);
+      const { data, error } = await supabase().storage.from(BUCKET).download(docs[i].path);
+      if (error || !data) missing.add(docs[i].path);
+      else files[names[i]] = new Uint8Array(await data.arrayBuffer());
+    }
+    setBusy('Montando o ZIP…');
+    const { zipSync, strToU8 } = await import('fflate');
+    files['indice-documentos.csv'] = strToU8(backupIndex(docs, names, missing));
+    const zip = zipSync(files, { level: 0 }); // PDF e imagem já vêm comprimidos: só empacota
+    const url = URL.createObjectURL(new Blob([zip as Uint8Array<ArrayBuffer>], { type: 'application/zip' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CADIGITAL-documentos-${today()}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    setBusy('');
+    if (missing.size) setMsg(`${missing.size} arquivo(s) não baixaram (marcados no índice). Tente de novo.`);
+    else {
+      const now = new Date().toISOString();
+      try {
+        localStorage.setItem(LAST_BACKUP, now);
+      } catch {
+        /* sem armazenamento local: só não lembra a data */
+      }
+      setLast(now);
+      setMsg(`Cópia pronta: ${docs.length} documento(s). Guarde o ZIP no Google Drive ou num HD externo.`);
+    }
+  };
+
+  const days = last ? Math.floor((Date.now() - new Date(last).getTime()) / 86_400_000) : null;
+  const late = docs.length > 0 && (days === null || days >= 7);
+  return (
+    <div className={`card mb ${late ? 'backup-late' : ''}`}>
+      <div className="card-head" style={{ marginBottom: 0 }}>
+        <div className="card-title">
+          <span className="icon-box"><Icon name="shield" size={17} /></span>
+          <div>
+            <h2>Cópia de segurança</h2>
+            <p className="muted small" style={{ margin: 0 }}>
+              Nada é apagado de vez pelo sistema. Mesmo assim, guarde uma cópia fora daqui:{' '}
+              {last ? `última cópia neste aparelho ${days === 0 ? 'hoje' : `há ${days} dia(s)`}` : 'nenhuma cópia baixada neste aparelho ainda'}
+              {late ? ' — recomendado 1× por semana.' : '.'}
+            </p>
+          </div>
+        </div>
+        <button className="primary" onClick={() => void run()} disabled={!!busy || !docs.length}>
+          <Icon name="download" size={15} /> {busy || 'Baixar tudo (ZIP)'}
+        </button>
+      </div>
+      {msg && (
+        <p className="small" role="status" style={{ margin: '10px 0 0' }}>
+          {msg}
+        </p>
+      )}
+    </div>
   );
 }
 

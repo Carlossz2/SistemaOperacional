@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { PeriodProvider } from './lib/period';
 import { Icon } from './components/Icon';
 import { promptInstall, usePwa, useUpdating } from './lib/pwa';
@@ -10,13 +10,13 @@ import { Integrations } from './pages/Integrations';
 import { Dashboard } from './pages/Dashboard';
 import { AdsPage, CapitalPage, ExpensesPage, ProductsPage, SalesPage } from './pages/Entries';
 import { Reports } from './pages/Reports';
-import { Weekly } from './pages/Weekly';
+import { Costs } from './pages/Costs';
 import { Documents } from './pages/Documents';
 import { Settings } from './pages/Settings';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: 'dashboard' },
-  { to: '/semanal', label: 'Semana a semana', icon: 'calendar' },
+  { to: '/custos', label: 'Controle de custos', icon: 'calendar' },
   { to: '/receitas', label: 'Receitas', icon: 'sales' },
   { to: '/trafego', label: 'Tráfego pago', icon: 'ads' },
   { to: '/despesas', label: 'Despesas', icon: 'expenses' },
@@ -127,7 +127,8 @@ function Shell() {
             <Route path="/caixa" element={<CapitalPage />} />
             <Route path="/produtos" element={<ProductsPage />} />
             <Route path="/relatorios" element={<Reports />} />
-            <Route path="/semanal" element={<Weekly />} />
+            <Route path="/custos" element={<Costs />} />
+            <Route path="/semanal" element={<Navigate to="/custos" replace />} />
             <Route path="/documentos" element={<Documents />} />
             <Route path="/configuracoes" element={<Settings />} />
             <Route path="/integracoes" element={<Integrations />} />

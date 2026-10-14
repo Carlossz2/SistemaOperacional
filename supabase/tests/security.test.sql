@@ -100,6 +100,34 @@ begin
   end;
 end $$;
 commit;
+-- proteção: documento nunca é apagado pelo app (só vai para a lixeira) e o arquivo cadastrado não some
+begin;
+select test.login_aal('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aal2');
+do $$
+begin
+  update public.documents set name = 'NF setembro', deleted_at = now() where path = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/nota.pdf';
+  assert (select count(*) from public.documents where deleted_at is not null) = 1, 'vai para a lixeira';
+  update public.documents set deleted_at = null;
+  assert (select count(*) from public.documents where deleted_at is null) = 1, 'restaura da lixeira';
+  begin
+    delete from public.documents;
+    raise exception 'FALHA: apagou documento';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.documents set path = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/outro.pdf';
+    raise exception 'FALHA: trocou o arquivo do documento';
+  exception when insufficient_privilege then null;
+  end;
+  delete from storage.objects where name = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/nota.pdf';
+  update storage.objects set name = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/x.pdf' where name = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/nota.pdf';
+  assert (select count(*) from storage.objects where name = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/nota.pdf') = 1, 'arquivo cadastrado não pode ser apagado nem alterado';
+  -- arquivo sem documento (envio que falhou no meio) pode ser limpo
+  insert into storage.objects (bucket_id, name) values ('documents', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/orfao.pdf');
+  delete from storage.objects where name = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/orfao.pdf';
+  assert (select count(*) from storage.objects where name = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/orfao.pdf') = 0, 'órfão limpo';
+end $$;
+commit;
 -- admin com 2FA ativo mas sessão sem código: não vê documentos nem arquivos
 begin;
 select test.login_aal('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aal1');
@@ -136,5 +164,15 @@ begin
 end $$;
 commit;
 do $$ begin assert (select public from storage.buckets where id = 'documents') = false, 'bucket privado'; end $$;
+-- apagar a conta não leva os documentos junto
+do $$
+begin
+  begin
+    delete from auth.users where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    raise exception 'FALHA: apagar a conta apagou os documentos';
+  exception when foreign_key_violation then null;
+  end;
+  assert (select count(*) from public.documents) = 1;
+end $$;
 
 \echo 'security.test.sql: OK'

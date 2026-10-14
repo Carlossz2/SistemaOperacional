@@ -236,6 +236,15 @@ async function storage(req: Request, parts: string[]): Promise<Response> {
       signed.set(token, `${bucket}/${name}`);
       return json({ signedURL: `/object/sign/${bucket}/${name}?token=${token}` });
     }
+    if (req.method === 'GET' && parts[0] === 'object') {
+      // download com login (storage.download): só o que a RLS de storage.objects deixa ver
+      const [bucket, ...rest] = parts.slice(1).map(decodeURIComponent);
+      const name = rest.join('/');
+      const ok = await asUser(claims, (c) => c.query('select 1 from storage.objects where bucket_id = $1 and name = $2', [bucket, name]));
+      const f = files.get(`${bucket}/${name}`);
+      if (!ok.rowCount || !f) return json({ statusCode: '404', error: 'not_found', message: 'Object not found' }, 400);
+      return new Response(f.bytes, { headers: { ...CORS, 'Content-Type': f.type || 'application/octet-stream' } });
+    }
     if (req.method === 'POST' && parts[0] === 'object') {
       const [bucket, ...rest] = parts.slice(1).map(decodeURIComponent);
       const name = rest.join('/');

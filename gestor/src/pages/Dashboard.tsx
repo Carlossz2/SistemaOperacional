@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useDb } from '../lib/store';
+import { updateSettings, useDb } from '../lib/store';
 import { FilterBar, FilterNote, usePeriod } from '../lib/period';
 import { previousPeriod, type PresetKey } from '../lib/dates';
 import { capitalSummary, computeTotals, timeSeries, type Filter, type Totals } from '../lib/metrics';
@@ -10,6 +10,8 @@ import { HeroKpi, MiniKpi } from '../components/Kpi';
 import { DonutChart, FlowChart, ProfitChart } from '../components/Charts';
 import { Icon } from '../components/Icon';
 import { RefreshButton } from '../components/RefreshButton';
+import { TemplatePicker } from '../components/TemplatePicker';
+import { MarketDashboard } from '../components/MarketDashboard';
 
 const RANGES: { key: PresetKey; label: string }[] = [
   { key: '7d', label: '7D' },
@@ -27,6 +29,7 @@ export function Dashboard() {
   const { period, productId, country, setPreset } = usePeriod();
   const [refreshed, setRefreshed] = useState<{ ok: boolean; message: string; at: Date } | null>(null);
   const cur = db.settings.baseCurrency;
+  const template = db.settings.dashboardTemplate ?? 'default';
   const f = useMemo<Filter>(
     () => ({ from: period.from, to: period.to, productId: productId || undefined, country: country || undefined }),
     [period.from, period.to, productId, country],
@@ -82,6 +85,7 @@ export function Dashboard() {
         <div className="head-actions">
           <FilterBar inline />
           <RefreshButton onResult={setRefreshed} />
+          <TemplatePicker value={template} onChange={(dashboardTemplate) => updateSettings({ dashboardTemplate })} />
           <button onClick={exportCsv} disabled={empty}>
             <Icon name="upload" size={15} /> Exportar
           </button>
@@ -115,143 +119,149 @@ export function Dashboard() {
         </div>
       )}
 
-      <div className="grid hero-row">
-        <HeroKpi
-          label="Faturamento bruto"
-          icon="cash"
-          color="var(--series-1)"
-          value={m(t.gross)}
-          fill={t.gross ? t.net / t.gross : 0}
-          fillLabel={`${pct(t.gross ? t.net / t.gross : null, 0)} vira líquido`}
-          current={t.gross}
-          previous={p.gross}
-          title="Barra: parte do faturamento que sobra após taxas e reembolsos"
-        />
-        <HeroKpi
-          label="Custos totais"
-          icon="trend"
-          color="var(--series-2)"
-          value={m(costs)}
-          fill={t.gross ? costs / t.gross : 0}
-          fillLabel={`consome ${pct(t.gross ? costs / t.gross : null, 0)} do bruto`}
-          current={costs}
-          previous={prevCosts}
-          inverse
-          title="Taxas + reembolsos + ads + despesas + impostos. Barra: quanto do faturamento os custos consomem"
-        />
-        <HeroKpi
-          label="Lucro líquido"
-          icon="coins"
-          color="var(--series-3)"
-          value={m(t.profit)}
-          negative={t.profit < 0}
-          fill={t.margin ?? 0}
-          fillLabel={`margem ${pct(t.margin, 0)}`}
-          current={t.profit}
-          previous={p.profit}
-          title="Receita líquida − ads − despesas − impostos. Barra: margem líquida"
-        />
-        <HeroKpi
-          label="Caixa estimado"
-          icon="wallet"
-          color="var(--series-5)"
-          value={m(capital.cash)}
-          negative={capital.cash < 0}
-          fill={generated ? capital.cash / generated : 0}
-          fillLabel={`${pct(generated ? capital.cash / generated : null, 0)} do gerado`}
-          current={capital.cash}
-          previous={data.prevCapital.cash}
-          title="Aportes + lucro acumulado − retiradas − investimentos. Barra: quanto do capital gerado continua em caixa"
-        />
-      </div>
-
-      <div className="grid mini-row five">
-        <MiniKpi label="ROAS" value={ratio(t.roas)} current={t.roas} previous={p.roas} title="Faturamento bruto ÷ ads" />
-        <MiniKpi label="ROI" value={pct(t.roi)} current={t.roi} previous={p.roi} title="Lucro ÷ (ads + despesas)" />
-        <MiniKpi label="CPA" value={t.cpa === null ? '—' : m(t.cpa)} current={t.cpa} previous={p.cpa} inverse title="Ads ÷ nº de vendas" />
-        <MiniKpi label="Vendas" value={num(t.units)} current={t.units} previous={p.units} />
-        <MiniKpi label="Ticket médio" value={t.aov === null ? '—' : m(t.aov)} current={t.aov} previous={p.aov} />
-        <MiniKpi label="Investimento em ads" value={m(t.ads)} current={t.ads} previous={p.ads} inverse />
-        <MiniKpi
-          label="Imposto da Meta"
-          value={m(t.adTax)}
-          current={t.adTax}
-          previous={p.adTax}
-          inverse
-          title={`${num(db.settings.adTaxRate ?? 0, 2)}% sobre o gasto com a Meta`}
-          extra={!db.settings.adTaxRate ? <Link to="/configuracoes" className="small">Definir % em Configurações</Link> : undefined}
-        />
-        <MiniKpi
-          label="Imposto do CNPJ"
-          value={m(t.taxCompany)}
-          current={t.taxCompany}
-          previous={p.taxCompany}
-          inverse
-          title={`${num(db.settings.taxRate ?? 0, 2)}% sobre ${db.settings.taxBase === 'gross' ? 'o faturamento bruto' : 'a receita líquida'}`}
-          extra={!db.settings.taxRate ? <Link to="/configuracoes" className="small">Definir % em Configurações</Link> : undefined}
-        />
-        <MiniKpi label="Receita líquida" value={m(t.net)} current={t.net} previous={p.net} title="Bruto − taxas − reembolsos" />
-        <MiniKpi label="Taxa de reembolso" value={pct(t.refundRate)} current={t.refundRate} previous={p.refundRate} inverse />
-      </div>
-
-      <div className="grid cols-flow mb">
-        <div className="card">
-          <div className="card-head">
-            <div className="card-title">
-              <span className="icon-box">
-                <Icon name="flow" size={17} />
-              </span>
-              <h2>Fluxo financeiro</h2>
-            </div>
-            <div className="segmented" role="tablist" aria-label="Intervalo">
-              {RANGES.map((r) => (
-                <button key={r.key} role="tab" aria-selected={period.preset === r.key} className={period.preset === r.key ? 'on' : ''} onClick={() => setPreset(r.key)}>
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <FlowChart {...data.flow} currency={cur} />
-        </div>
-        <div className="card">
-          <div className="card-head">
-            <div className="card-title">
-              <span className="icon-box">
-                <Icon name="pie" size={17} />
-              </span>
-              <h2>Composição dos custos</h2>
-            </div>
-          </div>
-          <DonutChart
-            currency={cur}
-            total={costs}
-            change={prevCosts ? (costs - prevCosts) / prevCosts : null}
-            slices={[
-              { name: 'Tráfego', value: t.ads, color: 'var(--series-1)' },
-              { name: 'Despesas', value: t.expenses, color: 'var(--series-2)' },
-              { name: 'Taxas', value: t.fees, color: 'var(--series-3)' },
-              { name: 'Reembolsos', value: t.refunds, color: 'var(--series-4)' },
-              { name: 'Impostos', value: t.tax, color: 'var(--series-5)' },
-            ]}
+      {template === 'market' ? (
+        <MarketDashboard db={db} f={f} period={period} t={t} p={p} cash={capital.cash} prevCash={data.prevCapital.cash} currency={cur} />
+      ) : (
+        <>
+        <div className="grid hero-row">
+          <HeroKpi
+            label="Faturamento bruto"
+            icon="cash"
+            color="var(--series-1)"
+            value={m(t.gross)}
+            fill={t.gross ? t.net / t.gross : 0}
+            fillLabel={`${pct(t.gross ? t.net / t.gross : null, 0)} vira líquido`}
+            current={t.gross}
+            previous={p.gross}
+            title="Barra: parte do faturamento que sobra após taxas e reembolsos"
+          />
+          <HeroKpi
+            label="Custos totais"
+            icon="trend"
+            color="var(--series-2)"
+            value={m(costs)}
+            fill={t.gross ? costs / t.gross : 0}
+            fillLabel={`consome ${pct(t.gross ? costs / t.gross : null, 0)} do bruto`}
+            current={costs}
+            previous={prevCosts}
+            inverse
+            title="Taxas + reembolsos + ads + despesas + impostos. Barra: quanto do faturamento os custos consomem"
+          />
+          <HeroKpi
+            label="Lucro líquido"
+            icon="coins"
+            color="var(--series-3)"
+            value={m(t.profit)}
+            negative={t.profit < 0}
+            fill={t.margin ?? 0}
+            fillLabel={`margem ${pct(t.margin, 0)}`}
+            current={t.profit}
+            previous={p.profit}
+            title="Receita líquida − ads − despesas − impostos. Barra: margem líquida"
+          />
+          <HeroKpi
+            label="Caixa estimado"
+            icon="wallet"
+            color="var(--series-5)"
+            value={m(capital.cash)}
+            negative={capital.cash < 0}
+            fill={generated ? capital.cash / generated : 0}
+            fillLabel={`${pct(generated ? capital.cash / generated : null, 0)} do gerado`}
+            current={capital.cash}
+            previous={data.prevCapital.cash}
+            title="Aportes + lucro acumulado − retiradas − investimentos. Barra: quanto do capital gerado continua em caixa"
           />
         </div>
-      </div>
 
-      <div className="card mb">
-        <div className="card-head">
-          <div className="card-title">
-            <span className="icon-box">
-              <Icon name="coins" size={17} />
-            </span>
-            <h2>Lucro {data.series.granularity === 'day' ? 'por dia' : 'por mês'}</h2>
-          </div>
-          <span className="legend">
-            <span><i className="swatch" style={{ background: 'var(--pos)' }} />Lucro</span>
-            <span><i className="swatch" style={{ background: 'var(--neg)' }} />Prejuízo</span>
-          </span>
+        <div className="grid mini-row five">
+          <MiniKpi label="ROAS" value={ratio(t.roas)} current={t.roas} previous={p.roas} title="Faturamento bruto ÷ ads" />
+          <MiniKpi label="ROI" value={pct(t.roi)} current={t.roi} previous={p.roi} title="Lucro ÷ (ads + despesas)" />
+          <MiniKpi label="CPA" value={t.cpa === null ? '—' : m(t.cpa)} current={t.cpa} previous={p.cpa} inverse title="Ads ÷ nº de vendas" />
+          <MiniKpi label="Vendas" value={num(t.units)} current={t.units} previous={p.units} />
+          <MiniKpi label="Ticket médio" value={t.aov === null ? '—' : m(t.aov)} current={t.aov} previous={p.aov} />
+          <MiniKpi label="Investimento em ads" value={m(t.ads)} current={t.ads} previous={p.ads} inverse />
+          <MiniKpi
+            label="Imposto da Meta"
+            value={m(t.adTax)}
+            current={t.adTax}
+            previous={p.adTax}
+            inverse
+            title={`${num(db.settings.adTaxRate ?? 0, 2)}% sobre o gasto com a Meta`}
+            extra={!db.settings.adTaxRate ? <Link to="/configuracoes" className="small">Definir % em Configurações</Link> : undefined}
+          />
+          <MiniKpi
+            label="Imposto do CNPJ"
+            value={m(t.taxCompany)}
+            current={t.taxCompany}
+            previous={p.taxCompany}
+            inverse
+            title={`${num(db.settings.taxRate ?? 0, 2)}% sobre ${db.settings.taxBase === 'gross' ? 'o faturamento bruto' : 'a receita líquida'}`}
+            extra={!db.settings.taxRate ? <Link to="/configuracoes" className="small">Definir % em Configurações</Link> : undefined}
+          />
+          <MiniKpi label="Receita líquida" value={m(t.net)} current={t.net} previous={p.net} title="Bruto − taxas − reembolsos" />
+          <MiniKpi label="Taxa de reembolso" value={pct(t.refundRate)} current={t.refundRate} previous={p.refundRate} inverse />
         </div>
-        <ProfitChart {...data.series} currency={cur} />
-      </div>
+
+        <div className="grid cols-flow mb">
+          <div className="card">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="icon-box">
+                  <Icon name="flow" size={17} />
+                </span>
+                <h2>Fluxo financeiro</h2>
+              </div>
+              <div className="segmented" role="tablist" aria-label="Intervalo">
+                {RANGES.map((r) => (
+                  <button key={r.key} role="tab" aria-selected={period.preset === r.key} className={period.preset === r.key ? 'on' : ''} onClick={() => setPreset(r.key)}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <FlowChart {...data.flow} currency={cur} />
+          </div>
+          <div className="card">
+            <div className="card-head">
+              <div className="card-title">
+                <span className="icon-box">
+                  <Icon name="pie" size={17} />
+                </span>
+                <h2>Composição dos custos</h2>
+              </div>
+            </div>
+            <DonutChart
+              currency={cur}
+              total={costs}
+              change={prevCosts ? (costs - prevCosts) / prevCosts : null}
+              slices={[
+                { name: 'Tráfego', value: t.ads, color: 'var(--series-1)' },
+                { name: 'Despesas', value: t.expenses, color: 'var(--series-2)' },
+                { name: 'Taxas', value: t.fees, color: 'var(--series-3)' },
+                { name: 'Reembolsos', value: t.refunds, color: 'var(--series-4)' },
+                { name: 'Impostos', value: t.tax, color: 'var(--series-5)' },
+              ]}
+            />
+          </div>
+        </div>
+
+        <div className="card mb">
+          <div className="card-head">
+            <div className="card-title">
+              <span className="icon-box">
+                <Icon name="coins" size={17} />
+              </span>
+              <h2>Lucro {data.series.granularity === 'day' ? 'por dia' : 'por mês'}</h2>
+            </div>
+            <span className="legend">
+              <span><i className="swatch" style={{ background: 'var(--pos)' }} />Lucro</span>
+              <span><i className="swatch" style={{ background: 'var(--neg)' }} />Prejuízo</span>
+            </span>
+          </div>
+          <ProfitChart {...data.series} currency={cur} />
+        </div>
+        </>
+      )}
     </>
   );
 }

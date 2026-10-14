@@ -114,7 +114,7 @@ Em **Configurações → Impostos**:
 - **Imposto do CNPJ (%)**: a alíquota do seu regime (ex.: Simples Nacional), calculada sobre a receita líquida ou o faturamento bruto.
 - **Impostos da Meta sobre anúncios (%)**: no Brasil a Meta cobra impostos além do valor dos anúncios (PIS/COFINS e ISS; IOF se o cartão for internacional). Confira o percentual na sua fatura da Meta e informe aqui.
 
-Os dois entram no lucro, no ROI, no DRE e na aba Semana a semana.
+Os dois entram no lucro, no ROI, no DRE e na aba Controle de custos.
 
 ## 9. Conectar a conta Mercado Pago (banco da empresa)
 
@@ -128,11 +128,18 @@ O extrato vem do *relatório de liberações* do Mercado Pago. Na primeira sincr
 
 ## 10. Documentos (comprovantes, notas, contratos)
 
-A aba **Documentos** guarda PDFs, imagens e planilhas (até 25 MB cada) no armazenamento privado do Supabase. Só a sua conta de administrador acessa os arquivos: os links para abrir ou baixar são temporários (valem 1 minuto). Arraste os arquivos ou clique para escolher, defina categoria, data e valor (opcional) e clique em **Guardar**. Funciona só no modo nuvem; nada a configurar além do deploy normal.
+A aba **Documentos** guarda PDFs, imagens e planilhas (até 25 MB cada) no armazenamento privado do Supabase. Só a sua conta de administrador acessa os arquivos: os links para abrir ou baixar são temporários (valem 1 minuto). Arraste os arquivos ou clique para escolher, defina categoria, data e valor (opcional) e clique em **Guardar**. Funciona só no modo nuvem.
+
+**Nada é apagado de vez pelo sistema:**
+- **Excluir** só move para a **Lixeira**, de onde dá para restaurar a qualquer momento.
+- O próprio banco de dados bloqueia apagar um documento, apagar ou sobrescrever o arquivo dele e trocar o arquivo de um documento — mesmo que alguém tente direto pela API com o seu login.
+- Apagar a conta de usuário é bloqueado enquanto houver documentos.
+
+**Cópia de segurança (faça 1× por semana):** clique em **Baixar tudo (ZIP)**. Vem um ZIP com todos os arquivos (inclusive os da lixeira), organizados em pastas por categoria, e um `indice-documentos.csv` (abre no Excel) com data, nome, valor e observações. Guarde o ZIP no Google Drive ou num HD externo. O cartão fica destacado quando a última cópia tem mais de 7 dias.
 
 ## 11. Backup e longo prazo
 
-- O plano gratuito do Supabase **não guarda backups automáticos** e pausa projetos sem uso por 7 dias. Para dados financeiros reais, recomendo o **plano Pro** (backups diários).
+- O plano gratuito do Supabase **não guarda backups automáticos** e pausa projetos sem uso por 7 dias. Para dados financeiros reais, recomendo o **plano Pro** (backups diários do banco). Atenção: os backups do Supabase **não incluem os arquivos** da aba Documentos — por isso o **Baixar tudo (ZIP)** semanal é importante em qualquer plano.
 - Independente do plano: **Configurações → Exportar backup** (inclui as vendas individuais) e guarde o arquivo em local seguro, ao menos 1× por semana.
 - Os eventos brutos dos webhooks nunca são apagados: são a prova do que cada plataforma enviou.
 

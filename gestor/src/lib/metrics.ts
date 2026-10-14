@@ -176,6 +176,7 @@ export function computeTotals(db: Database, f: Filter): Totals {
 
 export interface SeriesPoint {
   key: string; // dia (AAAA-MM-DD) ou mês (AAAA-MM)
+  gross: number;
   net: number;
   ads: number;
   expenses: number;
@@ -209,8 +210,8 @@ export function timeSeries(
   for (const o of expenses) map.get(bucket(o.date))!.expenses += o.amount;
   let cumulative = 0;
   const points = keys.map((key) => {
-    const { gross, adTax, ...b } = map.get(key)!;
-    const tax = companyTax(gross, b.net, db.settings) + adTax;
+    const { adTax, ...b } = map.get(key)!;
+    const tax = companyTax(b.gross, b.net, db.settings) + adTax;
     const profit = b.net - b.ads - b.expenses - tax;
     cumulative += profit;
     return { key, ...b, tax, profit, cumulative };
@@ -362,12 +363,17 @@ export function campaignNames(db: Database, productId?: string): string[] {
   return [...names].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 }
 
-export interface WeekRow {
-  /** Segunda-feira */
+export type Grouping = 'day' | 'week' | 'month';
+
+export interface CostRow {
+  /** Início do trecho (dia, segunda-feira ou dia 1; cortado no início do período) */
   from: string;
-  /** Domingo (ou hoje, na semana em andamento) */
+  /** Fim do trecho (cortado no fim do período) */
   to: string;
+  /** Trecho ainda em andamento (contém hoje e não acabou) */
   current: boolean;
+  /** Trecho cortado pelo período (não é o dia/semana/mês inteiro) */
+  partial: boolean;
   totals: Totals;
   /** Tráfego + despesas operacionais */
   spend: number;
@@ -375,27 +381,34 @@ export interface WeekRow {
   deductions: number;
 }
 
-const weekRow = (db: Database, from: string, to: string, current: boolean, f: Omit<Filter, 'from' | 'to'>): WeekRow => {
-  const totals = computeTotals(db, { ...f, from, to });
-  return { from, to, current, totals, spend: totals.ads + totals.expenses, deductions: totals.fees + totals.refunds + totals.tax };
-};
+const bucketStart = (d: string, g: Grouping) => (g === 'day' ? d : g === 'week' ? weekStart(d) : `${monthOf(d)}-01`);
+const bucketEnd = (start: string, g: Grouping) => (g === 'day' ? start : g === 'week' ? addDays(start, 6) : addDays(`${addMonths(monthOf(start), 1)}-01`, -1));
 
-/** Últimas `count` semanas (segunda a domingo), da mais recente para a mais antiga. A semana atual vai até `ref`. */
-export function weeklySummary(db: Database, count: number, ref: string, f: Omit<Filter, 'from' | 'to'> = {}): WeekRow[] {
-  const out: WeekRow[] = [];
-  const first = weekStart(ref);
-  for (let i = 0; i < count; i++) {
-    const from = addDays(first, -7 * i);
-    out.push(weekRow(db, from, i === 0 ? ref : addDays(from, 6), i === 0, f));
-  }
-  return out;
+/** Agrupamento automático pelo tamanho do período: até 14 dias por dia, até ~6 meses por semana, acima disso por mês. */
+export function autoGrouping(from: string, to: string): Grouping {
+  const days = daysBetween(from, to).length;
+  return days <= 14 ? 'day' : days <= 186 ? 'week' : 'month';
 }
 
-/** Semana atual até `ref` × semana passada até o mesmo dia da semana (comparação justa com a semana em andamento). */
-export function weekToDate(db: Database, ref: string, f: Omit<Filter, 'from' | 'to'> = {}) {
-  const from = weekStart(ref);
-  const prevFrom = addDays(from, -7);
-  return { current: weekRow(db, from, ref, true, f), previous: weekRow(db, prevFrom, addDays(ref, -7), false, f) };
+/** Custos e resultado do período quebrados por dia, semana (seg–dom) ou mês, do mais recente para o mais antigo. */
+export function costSummary(db: Database, f: Filter, g: Grouping, ref: string = f.to): CostRow[] {
+  const out: CostRow[] = [];
+  for (let start = bucketStart(f.from, g); start <= f.to; start = addDays(bucketEnd(start, g), 1)) {
+    const end = bucketEnd(start, g);
+    const from = start < f.from ? f.from : start;
+    const to = end > f.to ? f.to : end;
+    const totals = computeTotals(db, { ...f, from, to });
+    out.push({
+      from,
+      to,
+      current: from <= ref && ref < end,
+      partial: from !== start || to !== end,
+      totals,
+      spend: totals.ads + totals.expenses,
+      deductions: totals.fees + totals.refunds + totals.tax,
+    });
+  }
+  return out.reverse();
 }
 
 /** Para onde foi o dinheiro no período: tráfego por fonte e despesas por categoria (moeda base). */
