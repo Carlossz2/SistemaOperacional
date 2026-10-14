@@ -27,6 +27,26 @@ grant execute on function auth.jwt() to anon, authenticated, service_role;
 grant usage on schema auth to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
 
+-- Storage: o mínimo usado pelas migrações (bucket + objetos com RLS)
+create schema storage;
+create table storage.buckets (id text primary key, name text not null, public boolean default false, file_size_limit bigint, allowed_mime_types text[], created_at timestamptz default now());
+create table storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text references storage.buckets (id),
+  name text not null,
+  owner uuid default auth.uid(),
+  metadata jsonb,
+  created_at timestamptz default now(),
+  unique (bucket_id, name)
+);
+alter table storage.objects enable row level security;
+create function storage.foldername(name text) returns text[] language sql immutable as $$
+  select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
+$$;
+grant usage on schema storage to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.objects to authenticated, service_role;
+grant select on storage.buckets to authenticated, service_role;
+
 create schema extensions;
 create extension pgcrypto with schema extensions;
 grant usage on schema extensions to anon, authenticated, service_role;

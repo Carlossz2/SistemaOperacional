@@ -79,4 +79,62 @@ begin
 end $$;
 commit;
 
+-- documentos: admin (aal2) grava na própria pasta; não grava na pasta de outro; outros não veem nada
+begin;
+select test.login_aal('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aal2');
+insert into storage.objects (bucket_id, name) values ('documents', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/nota.pdf');
+insert into public.documents (name, category, path, size, mime) values ('Nota fiscal setembro', 'Nota fiscal', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/nota.pdf', 1234, 'application/pdf');
+do $$
+begin
+  assert (select count(*) from public.documents) = 1, 'admin vê o documento';
+  assert (select count(*) from storage.objects where bucket_id = 'documents') = 1, 'admin vê o arquivo';
+  begin
+    insert into storage.objects (bucket_id, name) values ('documents', 'cccccccc-cccc-cccc-cccc-cccccccccccc/x.pdf');
+    raise exception 'FALHA: gravou arquivo na pasta de outro usuário';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.documents (name, path) values ('x', 'cccccccc-cccc-cccc-cccc-cccccccccccc/x.pdf');
+    raise exception 'FALHA: documento apontando para pasta de outro usuário';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+commit;
+-- admin com 2FA ativo mas sessão sem código: não vê documentos nem arquivos
+begin;
+select test.login_aal('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aal1');
+do $$
+begin
+  assert (select count(*) from public.documents) = 0, 'aal1 não vê documentos';
+  assert (select count(*) from storage.objects) = 0, 'aal1 não vê arquivos';
+end $$;
+commit;
+-- outro usuário: nada
+begin;
+select test.login_aal('cccccccc-cccc-cccc-cccc-cccccccccccc', 'aal2');
+do $$
+begin
+  assert (select count(*) from public.documents) = 0;
+  assert (select count(*) from storage.objects) = 0;
+  begin
+    insert into storage.objects (bucket_id, name) values ('documents', 'cccccccc-cccc-cccc-cccc-cccccccccccc/y.pdf');
+    raise exception 'FALHA: não-admin gravou arquivo';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+commit;
+-- anônimo: nada
+begin;
+set local role anon;
+do $$
+begin
+  begin
+    perform count(*) from public.documents;
+    raise exception 'FALHA: anônimo leu documentos';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+commit;
+do $$ begin assert (select public from storage.buckets where id = 'documents') = false, 'bucket privado'; end $$;
+
 \echo 'security.test.sql: OK'

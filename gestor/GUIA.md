@@ -126,13 +126,17 @@ Os dois entram no lucro, no ROI, no DRE e na aba Semana a semana.
 
 O extrato vem do *relatório de liberações* do Mercado Pago. Na primeira sincronização, confira se os valores batem com o app do banco; se algo vier diferente, me avise.
 
-## 10. Backup e longo prazo
+## 10. Documentos (comprovantes, notas, contratos)
+
+A aba **Documentos** guarda PDFs, imagens e planilhas (até 25 MB cada) no armazenamento privado do Supabase. Só a sua conta de administrador acessa os arquivos: os links para abrir ou baixar são temporários (valem 1 minuto). Arraste os arquivos ou clique para escolher, defina categoria, data e valor (opcional) e clique em **Guardar**. Funciona só no modo nuvem; nada a configurar além do deploy normal.
+
+## 11. Backup e longo prazo
 
 - O plano gratuito do Supabase **não guarda backups automáticos** e pausa projetos sem uso por 7 dias. Para dados financeiros reais, recomendo o **plano Pro** (backups diários).
 - Independente do plano: **Configurações → Exportar backup** (inclui as vendas individuais) e guarde o arquivo em local seguro, ao menos 1× por semana.
 - Os eventos brutos dos webhooks nunca são apagados: são a prova do que cada plataforma enviou.
 
-## 11. Atualizações do sistema
+## 12. Atualizações do sistema
 
 Toda melhoria publicada no GitHub atualiza o app sozinho — inclusive o app instalado (PWA) no computador ou celular, que baixa a versão nova e recarrega quando você não estiver com um formulário aberto. A versão atual aparece no rodapé de *Configurações*.
 

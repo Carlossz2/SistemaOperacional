@@ -6,6 +6,7 @@
 //   /fake-graph/*    -> imitação da Marketing API da Meta (para testar a sincronização)
 //   /fake-fx         -> imitação da API de câmbio
 //   /fake-mp/*       -> imitação da API de relatórios do Mercado Pago
+//   /storage/v1/*    -> Storage (upload, link assinado, exclusão) com as políticas RLS reais
 import pg from 'npm:pg@8.13.1';
 import { mpReleaseCsv } from '../../functions/_shared/fixtures.ts';
 
@@ -187,6 +188,92 @@ const fakeMp = async (req: Request, path: string): Promise<Response> => {
   return json({ message: 'rota desconhecida' }, 404);
 };
 
+// ------------------------------------------------------------------ Storage simulado
+// Como o Supabase Storage: os metadados vão para storage.objects COM o papel e o JWT do usuário
+// (as políticas RLS da migração decidem), e o conteúdo fica em memória.
+const files = new Map<string, { bytes: Uint8Array; type: string }>();
+const signed = new Map<string, string>(); // token -> bucket/caminho
+
+async function asUser<T>(claims: Record<string, unknown>, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  const c = await db.connect();
+  try {
+    await c.query('begin');
+    await c.query("select set_config('role', 'authenticated', true), set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const out = await fn(c);
+    await c.query('commit');
+    return out;
+  } catch (err) {
+    await c.query('rollback');
+    throw err;
+  } finally {
+    c.release();
+  }
+}
+
+async function storage(req: Request, parts: string[]): Promise<Response> {
+  const url = new URL(req.url);
+  // download por link assinado (sem login, como no Supabase)
+  if (req.method === 'GET' && parts[0] === 'object' && parts[1] === 'sign') {
+    const key = decodeURIComponent(parts.slice(2).join('/'));
+    if (signed.get(url.searchParams.get('token') ?? '') !== key || !files.has(key)) return json({ statusCode: '400', error: 'InvalidSignature' }, 400);
+    const f = files.get(key)!;
+    const headers: Record<string, string> = { ...CORS, 'Content-Type': f.type || 'application/octet-stream' };
+    if (url.searchParams.has('download')) {
+      const fname = url.searchParams.get('download') || key.split('/').pop()!;
+      headers['Content-Disposition'] = `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`;
+    }
+    return new Response(f.bytes, { headers });
+  }
+  const claims = await verify((req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, ''));
+  if (!claims || claims.role !== 'authenticated') return json({ statusCode: '403', error: 'Unauthorized', message: 'invalid jwt' }, 403);
+  try {
+    if (req.method === 'POST' && parts[0] === 'object' && parts[1] === 'sign') {
+      const [bucket, ...rest] = parts.slice(2).map(decodeURIComponent);
+      const name = rest.join('/');
+      const ok = await asUser(claims, (c) => c.query('select 1 from storage.objects where bucket_id = $1 and name = $2', [bucket, name]));
+      if (!ok.rowCount) return json({ statusCode: '404', error: 'not_found', message: 'Object not found' }, 400);
+      const token = crypto.randomUUID();
+      signed.set(token, `${bucket}/${name}`);
+      return json({ signedURL: `/object/sign/${bucket}/${name}?token=${token}` });
+    }
+    if (req.method === 'POST' && parts[0] === 'object') {
+      const [bucket, ...rest] = parts.slice(1).map(decodeURIComponent);
+      const name = rest.join('/');
+      let bytes: Uint8Array;
+      let type = req.headers.get('content-type') ?? '';
+      if (type.startsWith('multipart/form-data')) {
+        // o supabase-js manda o arquivo num campo de nome vazio, que o req.formData() do Deno descarta:
+        // lê o multipart à mão (latin1 = 1 caractere por byte, então os índices valem para os bytes)
+        const raw = new Uint8Array(await req.arrayBuffer());
+        const text = new TextDecoder('latin1').decode(raw);
+        const boundary = '--' + (type.match(/boundary=([^;]+)/)?.[1] ?? '').replace(/"/g, '');
+        const part = text.split(boundary).find((x) => /filename=/i.test(x.slice(0, x.indexOf('\r\n\r\n'))));
+        if (!part) return json({ statusCode: '400', error: 'no file' }, 400);
+        const start = text.indexOf(part) + part.indexOf('\r\n\r\n') + 4;
+        const end = text.indexOf(part) + part.length - 2; // tira o \r\n antes do próximo separador
+        bytes = raw.slice(start, end);
+        type = part.match(/content-type:\s*([^\r\n]+)/i)?.[1]?.trim() ?? 'application/octet-stream';
+      } else bytes = new Uint8Array(await req.arrayBuffer());
+      const limit = await db.query('select file_size_limit from storage.buckets where id = $1', [bucket]);
+      if (limit.rows[0]?.file_size_limit && bytes.length > Number(limit.rows[0].file_size_limit)) return json({ statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' }, 413);
+      const r = await asUser(claims, (c) => c.query('insert into storage.objects (bucket_id, name, owner) values ($1, $2, $3) returning id', [bucket, name, claims.sub]));
+      files.set(`${bucket}/${name}`, { bytes, type });
+      return json({ Id: r.rows[0].id, Key: `${bucket}/${name}` });
+    }
+    if (req.method === 'DELETE' && parts[0] === 'object') {
+      const bucket = decodeURIComponent(parts[1]);
+      const { prefixes } = await req.json();
+      const r = await asUser(claims, (c) => c.query('delete from storage.objects where bucket_id = $1 and name = any($2) returning name', [bucket, prefixes]));
+      for (const row of r.rows) files.delete(`${bucket}/${row.name}`);
+      return json(r.rows.map((row: { name: string }) => ({ name: row.name, bucket_id: bucket })));
+    }
+  } catch (err) {
+    const msg = (err as Error).message;
+    return json({ statusCode: '403', error: 'Unauthorized', message: msg }, /row-level security|permission/.test(msg) ? 403 : 400);
+  }
+  return json({ error: 'rota de storage desconhecida' }, 404);
+}
+
 // ------------------------------------------------------------------ servidor
 Deno.serve({ port: PORT, onListen: () => console.log(`gateway em ${BASE}\nANON_KEY=${ANON_KEY}`) }, async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -210,6 +297,7 @@ Deno.serve({ port: PORT, onListen: () => console.log(`gateway em ${BASE}\nANON_K
       const inner = new Request(`${BASE}/${rest.slice(1).join('/')}${url.search}`, req);
       return await fn(inner);
     }
+    if (area === 'storage') return await storage(req, rest.slice(1));
     if (area === 'fake-graph') return fakeGraph(req);
     if (area === 'fake-mp') return await fakeMp(req, rest.join('/'));
     if (area === 'fake-fx') return json({ result: 'success', rates: { BRL: 1, USD: 0.2, EUR: 0.16, MXN: 3.4 } });
