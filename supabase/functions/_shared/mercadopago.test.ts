@@ -22,8 +22,10 @@ Deno.test('MP: valores', () => {
 });
 
 Deno.test('MP: linhas viram entradas e saídas (sem totais nem linhas zeradas)', () => {
-  const { movements, unknownColumns } = toMovements(parseCsv(releaseCsv), { userId: 'u', integrationId: 'i', timezone: 'America/Sao_Paulo' });
+  const { movements, unknownColumns, initial } = toMovements(parseCsv(releaseCsv), { userId: 'u', integrationId: 'i', timezone: 'America/Sao_Paulo' });
   assertEquals(unknownColumns, false);
+  // saldo no início do relatório (não vira movimentação)
+  assertEquals(initial, { date: '2026-10-01', balance: 1000 });
   assertEquals(movements.map((m) => [m.date, m.direction, m.amount, m.kind, m.balance]), [
     ['2026-10-05', 'in', 188.15, 'Recebimento', 1188.15],
     ['2026-10-06', 'out', 500, 'Saque / transferência', 688.15],

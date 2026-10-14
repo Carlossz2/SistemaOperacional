@@ -269,10 +269,8 @@ export interface CapitalSummary {
   aportes: number;
   retiradas: number;
   investimentos: number;
-  /** Caixa estimado acumulado até o fim do período */
+  /** Caixa pelos lançamentos manuais até o fim do período: aportes − retiradas − investimentos (não depende de vendas nem lucro) */
   cash: number;
-  /** Lucro acumulado desde o primeiro lançamento até o fim do período */
-  accumulatedProfit: number;
 }
 
 const capitalBase = (c: CapitalMove) => toBase(c.amount, c.rate);
@@ -282,13 +280,11 @@ export function capitalSummary(db: Database, f: Filter): CapitalSummary {
   const byKind = (moves: CapitalMove[], kind: CapitalMove['kind']) =>
     sum(moves.filter((c) => c.kind === kind), capitalBase);
   const allUntil = db.capital.filter((c) => c.date <= f.to);
-  const accumulatedProfit = computeTotals(db, { from: '0000-01-01', to: f.to }).profit;
   return {
     aportes: byKind(inPeriod, 'aporte'),
     retiradas: byKind(inPeriod, 'retirada'),
     investimentos: byKind(inPeriod, 'investimento'),
-    accumulatedProfit,
-    cash: byKind(allUntil, 'aporte') + accumulatedProfit - byKind(allUntil, 'retirada') - byKind(allUntil, 'investimento'),
+    cash: byKind(allUntil, 'aporte') - byKind(allUntil, 'retirada') - byKind(allUntil, 'investimento'),
   };
 }
 

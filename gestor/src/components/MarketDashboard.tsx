@@ -15,8 +15,8 @@ interface Props {
   period: Period;
   t: Totals;
   p: Totals;
-  cash: number;
-  prevCash: number;
+  cash: number | null;
+  prevCash: number | null;
   currency: string;
 }
 
@@ -59,7 +59,7 @@ export function MarketDashboard({ db, f, period, t, p, cash, prevCash, currency 
     { sym: 'TKT', label: 'Ticket médio', value: t.aov === null ? '—' : mc(t.aov), c: change(t.aov, p.aov) },
     { sym: 'ADS', label: 'Investimento em ads', value: mc(t.ads), c: change(t.ads, p.ads), inverse: true },
     { sym: 'MRG', label: 'Margem líquida', value: pct(t.margin), c: change(t.margin, p.margin) },
-    { sym: 'CXA', label: 'Caixa estimado', value: mc(cash), c: change(cash, prevCash) },
+    { sym: 'CXA', label: 'Caixa', value: cash === null ? '—' : mc(cash), c: change(cash, prevCash) },
   ];
 
   return (
@@ -170,7 +170,7 @@ export function MarketDashboard({ db, f, period, t, p, cash, prevCash, currency 
                 { label: 'Investimento em ads', cur: t.ads, prev: p.ads, fmt: mc, inverse: true },
                 { label: 'Imposto da Meta', cur: t.adTax, prev: p.adTax, fmt: mc, inverse: true },
                 { label: 'Imposto do CNPJ', cur: t.taxCompany, prev: p.taxCompany, fmt: mc, inverse: true },
-                { label: 'Caixa estimado', cur: cash, prev: prevCash, fmt: mc },
+                { label: 'Caixa', cur: cash, prev: prevCash, fmt: mc },
               ].map((r) => {
                 const c = change(r.cur, r.prev);
                 return (

@@ -8,8 +8,18 @@ export interface BankIntegration {
   id: string;
   user_id: string;
   enabled: boolean;
-  config: { imported?: string[]; lastRequestAt?: string; lastRequest?: { since: string; until: string } } & Record<string, unknown>;
+  config: {
+    imported?: string[];
+    lastRequestAt?: string;
+    lastRequest?: { since: string; until: string };
+    /** O caixa é controlado a partir deste dia: nada anterior é pedido nem guardado */
+    startDate?: string;
+    /** Saldo da conta no início do controle (do relatório do Mercado Pago ou informado pelo usuário) */
+    opening?: { date: string; balance: number; source: 'mercadopago' | 'manual' };
+  } & Record<string, unknown>;
 }
+
+const isDay = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 const DAY = 86_400_000;
 const shift = (day: string, n: number) => new Date(Date.parse(`${day}T12:00:00Z`) + n * DAY).toISOString().slice(0, 10);
@@ -22,7 +32,7 @@ async function client(sb: Admin, integ: BankIntegration): Promise<MercadoPago> {
 }
 
 /** Baixa os relatórios prontos que ainda não foram importados e grava as movimentações. */
-async function importReady(sb: Admin, integ: BankIntegration, mp: MercadoPago, timezone: string) {
+async function importReady(sb: Admin, integ: BankIntegration, mp: MercadoPago, timezone: string, start: string | null) {
   const imported = new Set(integ.config.imported ?? []);
   const files = (await mp.listReports())
     .filter((f) => f.file_name.toLowerCase().endsWith('.csv') && !imported.has(f.file_name))
@@ -31,20 +41,24 @@ async function importReady(sb: Admin, integ: BankIntegration, mp: MercadoPago, t
   let rows = 0;
   let done = 0;
   let unknownColumns = false;
+  let opening: { date: string; balance: number } | null = null;
   for (const f of files) {
     const csv = await mp.download(f.file_name);
     if (csv === null) continue; // ainda gerando
     const parsed = toMovements(parseCsv(csv), { userId: integ.user_id, integrationId: integ.id, timezone });
     unknownColumns ||= parsed.unknownColumns;
-    for (let i = 0; i < parsed.movements.length; i += 500) {
-      const { error } = await sb.from('bank_movements').upsert(parsed.movements.slice(i, i + 500), { onConflict: 'user_id,external_id' });
+    // relatório que começa no dia do início do controle traz o saldo da conta nesse dia
+    if (start && parsed.initial?.date === start) opening = parsed.initial;
+    const moves = start ? parsed.movements.filter((x) => x.date >= start) : parsed.movements;
+    for (let i = 0; i < moves.length; i += 500) {
+      const { error } = await sb.from('bank_movements').upsert(moves.slice(i, i + 500), { onConflict: 'user_id,external_id' });
       if (error) throw new Error(`Gravação: ${error.message}`);
     }
-    rows += parsed.movements.length;
+    rows += moves.length;
     imported.add(f.file_name);
     done++;
   }
-  return { files: done, waiting: files.length - done, rows, unknownColumns, imported: [...imported].slice(-300) };
+  return { files: done, waiting: files.length - done, rows, unknownColumns, opening, imported: [...imported].slice(-300) };
 }
 
 /** Pede (opcionalmente) um relatório novo e importa o que estiver pronto. Atualiza o status da integração. */
@@ -54,15 +68,27 @@ export async function syncBank(sb: Admin, integ: BankIntegration, opts: { since?
     const mp = await client(sb, integ);
     await mp.ensureConfig(settings.timezone);
     const config = { ...integ.config };
-    let requested = '';
-    if (opts.request && opts.since && opts.until) {
-      await mp.requestReport(opts.since, opts.until);
-      config.lastRequestAt = new Date().toISOString();
-      config.lastRequest = { since: opts.since, until: opts.until };
-      requested = `Relatório de ${opts.since} a ${opts.until} pedido ao Mercado Pago (fica pronto em alguns minutos e entra sozinho). `;
+    const start = isDay(config.startDate) ? config.startDate : null;
+    // nada antes do início do controle do caixa (inclusive o que já tinha entrado antes de mudar a data)
+    if (start) {
+      const { error } = await sb.from('bank_movements').delete().eq('integration_id', integ.id).lt('date', start);
+      if (error) throw new Error(`Limpeza: ${error.message}`);
     }
-    const r = await importReady(sb, { ...integ, config }, mp, settings.timezone);
+    const since = opts.since && start && opts.since < start ? start : opts.since;
+    let requested = '';
+    if (opts.request && since && opts.until) {
+      if (opts.until < since) {
+        requested = `O controle do caixa começa em ${since}: nada anterior é buscado. `;
+      } else {
+        await mp.requestReport(since, opts.until);
+        config.lastRequestAt = new Date().toISOString();
+        config.lastRequest = { since, until: opts.until };
+        requested = `Relatório de ${since} a ${opts.until} pedido ao Mercado Pago (fica pronto em alguns minutos e entra sozinho). `;
+      }
+    }
+    const r = await importReady(sb, { ...integ, config }, mp, settings.timezone, start);
     config.imported = r.imported;
+    if (r.opening && config.opening?.source !== 'manual') config.opening = { ...r.opening, source: 'mercadopago' };
     const parts = [
       requested,
       r.files ? `${r.rows} movimentação(ões) importada(s) de ${r.files} relatório(s).` : 'Nenhum relatório novo pronto ainda.',

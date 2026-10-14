@@ -131,13 +131,25 @@ export interface MovementCtx {
   timezone: string;
 }
 
-/** Converte as linhas do relatório em movimentações (ignora totais e linhas zeradas). */
-export function toMovements(rows: Record<string, string>[], ctx: MovementCtx): { movements: BankMovement[]; unknownColumns: boolean } {
+/**
+ * Converte as linhas do relatório em movimentações (ignora totais e linhas zeradas).
+ * `initial`: saldo disponível no início do relatório (linha initial_available_balance), quando vier.
+ */
+export function toMovements(
+  rows: Record<string, string>[],
+  ctx: MovementCtx,
+): { movements: BankMovement[]; unknownColumns: boolean; initial: { date: string; balance: number } | null } {
   const unknownColumns = rows.length > 0 && !('NET_CREDIT_AMOUNT' in rows[0] || 'NET_DEBIT_AMOUNT' in rows[0]);
   const movements: BankMovement[] = [];
+  let initial: { date: string; balance: number } | null = null;
   for (const r of rows) {
     const recordType = r.RECORD_TYPE ?? '';
-    if (recordType && SUMMARY.test(recordType)) continue;
+    if (recordType && SUMMARY.test(recordType)) {
+      const occurred = parseDate(r.DATE, ctx.timezone);
+      const balance = amount(r.BALANCE_AMOUNT);
+      if (!initial && /initial/i.test(recordType) && occurred && balance !== null) initial = { date: dayIn(occurred, ctx.timezone), balance };
+      continue;
+    }
     const credit = Math.abs(amount(r.NET_CREDIT_AMOUNT) ?? 0);
     const debit = Math.abs(amount(r.NET_DEBIT_AMOUNT) ?? 0);
     const net = Math.round((credit - debit) * 100) / 100;
@@ -165,7 +177,7 @@ export function toMovements(rows: Record<string, string>[], ctx: MovementCtx): {
       raw: r,
     });
   }
-  return { movements, unknownColumns };
+  return { movements, unknownColumns, initial };
 }
 
 // ------------------------------------------------------------------ API

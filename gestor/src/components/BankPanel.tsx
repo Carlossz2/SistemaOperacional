@@ -4,10 +4,12 @@ import { Icon } from './Icon';
 import { MiniKpi } from './Kpi';
 import { fmtDateTime, SecretField, useIntegrations } from '../pages/Integrations';
 import { supabase } from '../lib/cloud/sync';
-import { addDays, today } from '../lib/dates';
+import { previousPeriod, today } from '../lib/dates';
 import { money, shortDate } from '../lib/format';
 import { download, toCsv } from '../lib/io';
 import { capitalSummary } from '../lib/metrics';
+import { useCash } from '../lib/cloud/cash';
+import { DecimalInput } from './DecimalInput';
 import { usePeriod } from '../lib/period';
 import { isCloudActive, useDb } from '../lib/store';
 
@@ -42,45 +44,57 @@ function Local() {
   );
 }
 
-/** Caixa estimado pelos lançamentos (vendas − custos + aportes − retiradas − investimentos). */
-function CashKpis({ bank }: { bank?: { balance: number | null; asOf: string | null; inflow: number; outflow: number } }) {
+/** Caixa = dinheiro de verdade: conta Mercado Pago (desde o início do controle) ou, sem banco, aportes − retiradas − investimentos. */
+function CashKpis() {
   const db = useDb();
   const { period } = usePeriod();
   const cur = db.settings.baseCurrency;
   const m = (v: number) => money(v, cur);
   const cap = useMemo(() => capitalSummary(db, { from: period.from, to: period.to }), [db, period]);
+  const cash = useCash(period.from, period.to, previousPeriod(period).to);
+  const bank = cash.source === 'mercadopago';
   return (
     <div className="grid mini-row">
-      {bank && (
+      {bank ? (
         <>
           <MiniKpi
-            label="Saldo na conta (Mercado Pago)"
-            value={bank.balance === null ? '—' : m(bank.balance)}
+            label="Caixa · saldo na conta"
+            value={cash.value === null ? '—' : m(cash.value)}
+            negative={cash.value !== null && cash.value < 0}
             current={null}
             previous={null}
-            extra={<span className="muted small">{bank.asOf ? `após a última movimentação (${fmtDateTime(bank.asOf)})` : 'aguardando o 1º extrato'}</span>}
+            extra={
+              <span className="muted small">
+                {cash.value === null
+                  ? period.to < (cash.startDate ?? '') ? `o controle começa em ${shortDate(cash.startDate ?? '')}` : 'aguardando o 1º extrato'
+                  : cash.asOf
+                    ? `após a última movimentação (${fmtDateTime(cash.asOf)})`
+                    : `saldo em ${shortDate(cash.startDate ?? '')}`}
+              </span>
+            }
           />
-          <MiniKpi label="Entradas no período" value={m(bank.inflow)} current={null} previous={null} extra={<span className="muted small">na conta</span>} />
-          <MiniKpi label="Saídas no período" value={m(bank.outflow)} current={null} previous={null} extra={<span className="muted small">na conta</span>} />
+          <MiniKpi label="Entradas no período" value={m(cash.inflow)} current={null} previous={null} extra={<span className="muted small">na conta</span>} />
+          <MiniKpi label="Saídas no período" value={m(cash.outflow)} current={null} previous={null} extra={<span className="muted small">na conta</span>} />
           <MiniKpi
             label="Resultado da conta"
-            value={m(bank.inflow - bank.outflow)}
-            negative={bank.inflow - bank.outflow < 0}
+            value={m(cash.inflow - cash.outflow)}
+            negative={cash.inflow - cash.outflow < 0}
             current={null}
             previous={null}
             extra={<span className="muted small">entradas − saídas</span>}
           />
         </>
+      ) : (
+        <MiniKpi
+          label="Caixa (lançamentos)"
+          value={m(cap.cash)}
+          negative={cap.cash < 0}
+          current={null}
+          previous={null}
+          title="Aportes − retiradas − investimentos até o fim do período. Não depende de vendas nem de lucro."
+          extra={<span className="muted small">até {shortDate(period.to)}</span>}
+        />
       )}
-      <MiniKpi
-        label="Caixa estimado (lançamentos)"
-        value={m(cap.cash)}
-        negative={cap.cash < 0}
-        current={null}
-        previous={null}
-        title="Aportes + lucro acumulado − retiradas − investimentos, até o fim do período"
-        extra={<span className="muted small">até {shortDate(period.to)}</span>}
-      />
       <MiniKpi label="Aportes no período" value={m(cap.aportes)} current={null} previous={null} extra={<span className="muted small">capital que entrou</span>} />
       <MiniKpi
         label="Retiradas + investimentos"
@@ -93,12 +107,6 @@ function CashKpis({ bank }: { bank?: { balance: number | null; asOf: string | nu
   );
 }
 
-const RANGES = [
-  { v: '30', label: 'Últimos 30 dias' },
-  { v: '90', label: 'Últimos 90 dias' },
-  { v: '365', label: 'Últimos 12 meses' },
-];
-
 function Cloud() {
   const { list, secrets, reload, loaded } = useIntegrations();
   const { period } = usePeriod();
@@ -106,9 +114,10 @@ function Cloud() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
-  const [range, setRange] = useState('90');
   const [moves, setMoves] = useState<Movement[]>([]);
-  const [last, setLast] = useState<Movement | null>(null);
+  // o caixa é controlado a partir desta data: nada anterior é buscado no Mercado Pago
+  const startDate = typeof bank?.config.startDate === 'string' ? bank.config.startDate : null;
+  const opening = bank?.config.opening as { date: string; balance: number; source: 'mercadopago' | 'manual' } | undefined;
   const [tick, setTick] = useState(0);
   const timers = useRef<number[]>([]);
 
@@ -126,16 +135,22 @@ function Cloud() {
       void sb.removeChannel(ch);
     };
   }, []);
+  // conexão antiga sem data de início: o controle começa hoje
   useEffect(() => {
-    if (!bank) return;
+    if (bank && !startDate) void supabase().from('integrations').update({ config: { ...bank.config, startDate: today() } }).eq('id', bank.id).then(() => reload());
+  }, [bank, startDate, reload]);
+
+  useEffect(() => {
+    if (!bank || !startDate) return;
     const sb = supabase();
+    const since = period.from < startDate ? startDate : period.from;
     void (async () => {
       const all: Movement[] = [];
       for (let from = 0; from < 20_000; from += 1000) {
         const { data } = await sb
           .from('bank_movements')
           .select('id, date, occurred_at, direction, amount, balance, kind, description, source_id')
-          .gte('date', period.from)
+          .gte('date', since)
           .lte('date', period.to)
           .order('occurred_at', { ascending: false })
           .range(from, from + 999);
@@ -143,15 +158,8 @@ function Cloud() {
         if (!data || data.length < 1000) break;
       }
       setMoves(all.map((x) => ({ ...x, amount: Number(x.amount), balance: x.balance === null ? null : Number(x.balance) })));
-      const { data: lastRow } = await sb
-        .from('bank_movements')
-        .select('id, date, occurred_at, direction, amount, balance, kind, description, source_id')
-        .not('balance', 'is', null)
-        .order('occurred_at', { ascending: false })
-        .limit(1);
-      setLast(lastRow?.[0] ? ({ ...lastRow[0], balance: Number(lastRow[0].balance) } as Movement) : null);
     })();
-  }, [bank?.id, period.from, period.to, tick]);
+  }, [bank?.id, startDate, period.from, period.to, tick]);
 
   const invoke = useCallback(
     async (body: Record<string, unknown>) => {
@@ -167,7 +175,7 @@ function Cloud() {
 
   const connect = async () => {
     setBusy(true);
-    const { error } = await supabase().from('integrations').insert({ platform: 'mercadopago', name: 'Mercado Pago', config: {} });
+    const { error } = await supabase().from('integrations').insert({ platform: 'mercadopago', name: 'Mercado Pago', config: { startDate: today() } });
     setBusy(false);
     if (error) return alert(error.message);
     setOpen(true);
@@ -177,17 +185,18 @@ function Cloud() {
   const syncNow = async () => {
     setBusy(true);
     setMsg('Pedindo o extrato ao Mercado Pago…');
-    const ok = await invoke({ since: addDays(today(), -(Number(range) - 1)), until: today() });
+    const ok = await invoke({ since: startDate ?? today(), until: today() });
     setBusy(false);
     // o relatório leva alguns minutos para ficar pronto: busca de novo sozinho enquanto a tela estiver aberta
     if (ok) for (const wait of [60_000, 180_000, 420_000]) timers.current.push(window.setTimeout(() => void invoke({ action: 'import' }), wait));
   };
 
-  const flows = useMemo(() => {
-    const inflow = moves.filter((x) => x.direction === 'in').reduce((a, x) => a + x.amount, 0);
-    const outflow = moves.filter((x) => x.direction === 'out').reduce((a, x) => a + x.amount, 0);
-    return { inflow, outflow };
-  }, [moves]);
+  const setConfig = async (patch: Record<string, unknown>) => {
+    if (!bank) return;
+    const { error } = await supabase().from('integrations').update({ config: { ...bank.config, ...patch } }).eq('id', bank.id);
+    if (error) alert(error.message);
+    await reload();
+  };
 
   if (!loaded) return <CashKpis />;
 
@@ -220,11 +229,7 @@ function Cloud() {
               </button>
             ) : (
               <>
-                <select aria-label="Período do extrato" value={range} onChange={(e) => setRange(e.target.value)} disabled={!hasToken}>
-                  {RANGES.map((r) => (
-                    <option key={r.v} value={r.v}>{r.label}</option>
-                  ))}
-                </select>
+                {startDate && <span className="muted small">Caixa desde {shortDate(startDate)}</span>}
                 <button disabled={busy || !hasToken} onClick={syncNow}>
                   <Icon name="refresh" size={14} /> Sincronizar agora
                 </button>
@@ -246,7 +251,7 @@ function Cloud() {
                 : bank.last_sync_at
                   ? `Última sincronização ${fmtDateTime(bank.last_sync_at)} · ${(bank.last_sync_status ?? '').replace(/^ok:\s*/, '')}`
                   : hasToken
-                    ? 'Pronto. Escolha o período e clique em "Sincronizar agora" para trazer o histórico.'
+                    ? `Pronto. Clique em "Sincronizar agora": entra só o que aconteceu a partir de ${shortDate(startDate ?? today())}.`
                     : 'Cole o Access Token abaixo para começar.')}
           </p>
         )}
@@ -266,6 +271,36 @@ function Cloud() {
                 Atualizar sozinho de hora em hora
               </label>
             </div>
+            <label className="field">
+              Controlar o caixa a partir de
+              <input
+                type="date"
+                aria-label="Início do controle do caixa"
+                value={startDate ?? ''}
+                max={today()}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v || v === startDate) return;
+                  if (startDate && v > startDate && !confirm(`As movimentações antes de ${shortDate(v)} saem do sistema na próxima sincronização. Continuar?`)) return;
+                  void setConfig({ startDate: v });
+                }}
+              />
+              <span className="muted small">Nada anterior a essa data é buscado no Mercado Pago.</span>
+            </label>
+            <label className="field">
+              Saldo da conta nesse dia (opcional)
+              <OpeningInput
+                value={opening && opening.date === startDate ? opening.balance : null}
+                onSave={(v) => void setConfig({ opening: { date: startDate, balance: v, source: 'manual' } })}
+              />
+              <span className="muted small">
+                {opening && opening.date === startDate
+                  ? opening.source === 'mercadopago'
+                    ? 'Lido do relatório do Mercado Pago.'
+                    : 'Informado por você.'
+                  : 'Vem sozinho do Mercado Pago na 1ª sincronização; preencha só se quiser.'}
+              </span>
+            </label>
             <details className="span-2" open={!hasToken}>
               <summary className="small" style={{ cursor: 'pointer' }}>Como pegar o Access Token do Mercado Pago</summary>
               <ol className="small muted">
@@ -280,10 +315,21 @@ function Cloud() {
         )}
       </div>
 
-      <CashKpis bank={bank ? { balance: last?.balance ?? null, asOf: last?.occurred_at ?? null, inflow: flows.inflow, outflow: flows.outflow } : undefined} />
+      <CashKpis />
 
       {bank && <Statement moves={moves} />}
     </>
+  );
+}
+
+/** Saldo inicial: salva ao sair do campo (não a cada tecla). */
+function OpeningInput({ value, onSave }: { value: number | null; onSave: (v: number) => void }) {
+  const [draft, setDraft] = useState(value ?? 0);
+  useEffect(() => setDraft(value ?? 0), [value]);
+  return (
+    <div onBlur={() => draft !== (value ?? 0) && onSave(draft)}>
+      <DecimalInput aria-label="Saldo inicial da conta" value={draft} onChange={setDraft} />
+    </div>
   );
 }
 

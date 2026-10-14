@@ -233,6 +233,29 @@ Deno.test({ name: 'Mercado Pago: pede relatório, importa quando fica pronto, se
   assertEquals((await sb.from('bank_movements').select('id')).data?.length, 3);
   // sem login
   assertEquals((await post('bank-sync', { integrationId: bank!.id }, { Authorization: 'Bearer token-falso' })).status, 401);
+  // caixa controlado a partir de uma data: nada anterior é pedido nem guardado (inclusive o que já tinha entrado)
+  const cfg = async () => (await sb.from('integrations').select('config').eq('id', bank!.id).single()).data!.config;
+  await sb.from('integrations').update({ config: { ...(await cfg()), startDate: '2026-10-06' } }).eq('id', bank!.id);
+  body = await (await call({ since: '2026-09-01', until: '2026-10-07' })).json();
+  assert(body.ok && body.results[0].message.includes('2026-10-06 a 2026-10-07'), 'pede só a partir do início: ' + JSON.stringify(body));
+  assertEquals((await cfg()).lastRequest, { since: '2026-10-06', until: '2026-10-07' });
+  await new Promise((r) => setTimeout(r, 1700));
+  await call({ action: 'import' });
+  assertEquals(((await sb.from('bank_movements').select('date').order('date')).data ?? []).map((m) => m.date), ['2026-10-06', '2026-10-07']);
+  body = await (await call({ since: '2026-09-01', until: '2026-10-05' })).json();
+  assert(body.ok && body.results[0].message.includes('nada anterior'), 'período todo antes do início não é pedido: ' + JSON.stringify(body));
+  // relatório que começa no dia do início traz o saldo da conta nesse dia
+  await sb.from('integrations').update({ config: { ...(await cfg()), startDate: '2026-10-01' } }).eq('id', bank!.id);
+  await call({ since: '2026-10-01', until: '2026-10-07' });
+  await new Promise((r) => setTimeout(r, 1700));
+  await call({ action: 'import' });
+  assertEquals((await cfg()).opening, { date: '2026-10-01', balance: 1000, source: 'mercadopago' });
+  // saldo informado à mão não é sobrescrito
+  await sb.from('integrations').update({ config: { ...(await cfg()), opening: { date: '2026-10-01', balance: 900, source: 'manual' } } }).eq('id', bank!.id);
+  await call({ since: '2026-10-01', until: '2026-10-07' });
+  await new Promise((r) => setTimeout(r, 1700));
+  await call({ action: 'import' });
+  assertEquals((await cfg()).opening.balance, 900);
 }});
 
 Deno.test({ name: 'agendador: segredo interno sincroniza e tenta de novo webhooks com erro', ...opts, fn: async () => {

@@ -121,10 +121,14 @@ Os dois entram no lucro, no ROI, no DRE e na aba Controle de custos.
 1. Em **mercadopago.com.br/developers/panel/app** (logado na conta da empresa), crie uma aplicação (ex.: CADIGITAL).
 2. Abra **Credenciais de produção** e copie o **Access Token** (`APP_USR-…`). Ele dá acesso à conta: cole **somente** no sistema, nunca em chat ou e-mail.
 3. No sistema: **Caixa & capital → Conectar Mercado Pago**, cole o token e salve.
-4. Escolha o período (até 12 meses) e clique em **Sincronizar agora**. O Mercado Pago leva alguns minutos para gerar o extrato; ele entra sozinho.
-5. Daí em diante o extrato é atualizado **de hora em hora**: saldo, entradas, saídas (Pix e transferências enviados, saques, reembolsos, tarifas) e o extrato completo do período.
+4. Clique em **Sincronizar agora**. O Mercado Pago leva alguns minutos para gerar o extrato; ele entra sozinho.
+5. Daí em diante o extrato é atualizado **de hora em hora**: saldo, entradas, saídas (Pix e transferências enviados, saques, reembolsos, tarifas).
 
-O extrato vem do *relatório de liberações* do Mercado Pago. Na primeira sincronização, confira se os valores batem com o app do banco; se algo vier diferente, me avise.
+**O caixa começa no dia em que você conecta.** Nada anterior é buscado no Mercado Pago. A data aparece como "Caixa desde …" e pode ser mudada em **Configurar** (se mudar para mais tarde, o que veio antes sai do sistema na próxima sincronização). O saldo da conta nesse dia vem sozinho do relatório do Mercado Pago; se quiser, informe à mão no mesmo lugar.
+
+**Caixa é separado de faturamento e lucro.** O cartão **Caixa** do Dashboard mostra o saldo real da conta Mercado Pago no fim do período — mesmo com a operação no prejuízo, ele mostra o dinheiro que você tem. Sem o banco conectado, o caixa é só aportes − retiradas − investimentos lançados em Caixa & capital.
+
+O extrato vem do *relatório de liberações* do Mercado Pago. Na primeira sincronização, confira se o saldo bate com o app do banco; se algo vier diferente, me avise.
 
 ## 10. Documentos (comprovantes, notas, contratos)
 
