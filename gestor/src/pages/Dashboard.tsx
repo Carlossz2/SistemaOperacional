@@ -3,13 +3,11 @@ import { Link } from 'react-router-dom';
 import { useDb } from '../lib/store';
 import { FilterBar, FilterNote, usePeriod } from '../lib/period';
 import { previousPeriod, type PresetKey } from '../lib/dates';
-import { breakdown, capitalSummary, computeTotals, expensesByCategory, timeSeries, type Filter, type Totals } from '../lib/metrics';
+import { capitalSummary, computeTotals, timeSeries, type Filter, type Totals } from '../lib/metrics';
 import { money, num, pct, ratio, shortDate } from '../lib/format';
 import { download, toCsv } from '../lib/io';
 import { HeroKpi, MiniKpi } from '../components/Kpi';
 import { DonutChart, FlowChart, ProfitChart } from '../components/Charts';
-import { BreakdownTable } from '../components/BreakdownTable';
-import { Transactions } from '../components/Transactions';
 import { Icon } from '../components/Icon';
 import { RefreshButton } from '../components/RefreshButton';
 
@@ -40,11 +38,7 @@ export function Dashboard() {
       t: computeTotals(db, f),
       p: computeTotals(db, prevF),
       series: timeSeries(db, f),
-      flow: timeSeries(db, f, 366),
-      byProduct: breakdown(db, f, 'productId'),
-      byCountry: breakdown(db, f, 'country'),
-      bySource: breakdown(db, f, 'source'),
-      categories: expensesByCategory(db, f),
+      flow: timeSeries(db, f),
       capital: capitalSummary(db, f),
       prevCapital: capitalSummary(db, prevF),
     };
@@ -53,8 +47,6 @@ export function Dashboard() {
   const empty = !db.sales.length && !db.ads.length && !db.expenses.length;
   const { t, p, capital } = data;
   const m = (v: number) => money(v, cur);
-  const productName = (id: string) => db.products.find((x) => x.id === id)?.name ?? '—';
-  const totalCat = data.categories.reduce((a, c) => a + c.amount, 0) || 1;
   const costs = totalCosts(t);
   const prevCosts = totalCosts(p);
   const generated = db.capital.filter((c) => c.kind === 'aporte' && c.date <= period.to).reduce((a, c) => a + c.amount * c.rate, 0) +
@@ -245,94 +237,20 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="mb">
-        <Transactions db={db} filter={f} currency={cur} />
-      </div>
-
       <div className="card mb">
         <div className="card-head">
           <div className="card-title">
             <span className="icon-box">
-              <Icon name="products" size={17} />
+              <Icon name="coins" size={17} />
             </span>
-            <h2>Desempenho por produto</h2>
-          </div>
-          <Link to="/relatorios" className="small">
-            Ver relatórios →
-          </Link>
-        </div>
-        <div className="table-wrap framed">
-          <BreakdownTable
-            rows={data.byProduct}
-            dim="productId"
-            currency={cur}
-            nameOf={productName}
-            targetCpa={(id) => db.products.find((x) => x.id === id)?.targetCpa || undefined}
-          />
-        </div>
-      </div>
-
-      <div className="grid cols-2 mb">
-        <div className="card">
-          <div className="card-head">
             <h2>Lucro {data.series.granularity === 'day' ? 'por dia' : 'por mês'}</h2>
-            <span className="legend">
-              <span><i className="swatch" style={{ background: 'var(--pos)' }} />Lucro</span>
-              <span><i className="swatch" style={{ background: 'var(--neg)' }} />Prejuízo</span>
-            </span>
           </div>
-          <ProfitChart {...data.series} currency={cur} />
+          <span className="legend">
+            <span><i className="swatch" style={{ background: 'var(--pos)' }} />Lucro</span>
+            <span><i className="swatch" style={{ background: 'var(--neg)' }} />Prejuízo</span>
+          </span>
         </div>
-        <div className="card">
-          <h2>Por país</h2>
-          <BreakdownTable rows={data.byCountry} dim="country" currency={cur} limit={7} compact />
-        </div>
-      </div>
-
-      <div className="grid cols-2">
-        <div className="grid" style={{ alignContent: 'start' }}>
-          <div className="card">
-            <h2>Investimento por fonte de tráfego</h2>
-            <BreakdownTable rows={data.bySource} dim="source" currency={cur} />
-          </div>
-          <div className="card">
-            <h2>Caixa & capital</h2>
-            <table>
-              <tbody>
-                <tr><td>Aportes no período</td><td className="num pos">{m(capital.aportes)}</td></tr>
-                <tr><td>Retiradas no período</td><td className="num neg">{m(capital.retiradas)}</td></tr>
-                <tr><td>Investimentos no período</td><td className="num neg">{m(capital.investimentos)}</td></tr>
-                <tr><td>Lucro acumulado (total)</td><td className="num">{m(capital.accumulatedProfit)}</td></tr>
-              </tbody>
-              <tfoot>
-                <tr><td>Caixa estimado em {shortDate(period.to)}</td><td className={`num ${capital.cash < 0 ? 'neg' : ''}`}>{m(capital.cash)}</td></tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-        <div className="card">
-          <h2>Despesas por categoria</h2>
-          {data.categories.length ? (
-            <table>
-              <tbody>
-                {data.categories.map((c) => (
-                  <tr key={c.category}>
-                    <td>{c.category}</td>
-                    <td style={{ width: '35%' }}>
-                      <div className="bar-track">
-                        <div className="bar-fill" style={{ width: `${(c.amount / totalCat) * 100}%`, background: 'var(--series-2)' }} />
-                      </div>
-                    </td>
-                    <td className="num muted">{pct(c.amount / totalCat, 0)}</td>
-                    <td className="num">{m(c.amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="empty">Sem despesas no período.</div>
-          )}
-        </div>
+        <ProfitChart {...data.series} currency={cur} />
       </div>
     </>
   );
