@@ -24,16 +24,24 @@ export async function handler(req: Request): Promise<Response> {
   if (body.integrationId) q = sb.from('integrations').select('id, name, config').eq('user_id', userId).eq('id', body.integrationId).limit(1);
   const { data: integs } = await q;
   const integ = integs?.[0] as { id: string; name: string; config: Record<string, unknown> } | undefined;
-  if (platform === 'generic' && !integ) return json({ error: 'Para "Outra plataforma", conecte-a primeiro em Receitas' }, 400);
+  // "Outra plataforma" sem conexão: identificada só pelo nome informado (Kiwify, Eduzz, Ticto…)
+  const otherName = typeof body.platformName === 'string' ? body.platformName.replace(/\s+/g, ' ').trim().slice(0, 40) : '';
+  const otherKey = otherName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  if (platform === 'generic' && !integ && !otherKey) return json({ error: 'Informe o nome da plataforma' }, 400);
 
   const settings = await userSettings(sb, userId);
   const repo = makeRepo(sb, userId, new FxCache(sb, settings.rates));
-  const cfg = { ...(integ?.config ?? {}), timezone: settings.timezone };
+  const cfg = { ...(platform === 'generic' && otherKey ? {} : (integ?.config ?? {})), timezone: settings.timezone };
   const ctx = {
     userId,
-    integrationId: integ?.id ?? null,
-    platformKey: platform === 'generic' ? `generic:${integ!.id}` : platform,
-    platformLabel: platform === 'generic' ? integ!.name : ADAPTERS[platform].label,
+    integrationId: platform === 'generic' && otherKey ? null : (integ?.id ?? null),
+    platformKey: platform === 'generic' ? (otherKey ? `outra:${otherKey}` : `generic:${integ!.id}`) : platform,
+    platformLabel: platform === 'generic' ? (otherKey ? otherName : integ!.name) : ADAPTERS[platform].label,
     eventId: null,
   };
 

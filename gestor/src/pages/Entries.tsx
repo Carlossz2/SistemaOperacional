@@ -2,14 +2,13 @@ import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Crud, EntryForm, type Field } from '../components/Crud';
 import { BankPanel } from '../components/BankPanel';
-import { BulkSalesButton } from '../components/BulkSales';
-import { RevenuePanel } from '../components/RevenuePanel';
+import { CustomerList } from '../components/CustomerList';
 import { TrafficPanel, type TrafficFilter } from '../components/TrafficPanel';
 import type { AdSpend, CapitalMove, Database, Expense, Product, Sale } from '../lib/types';
 import { adBase, campaignNames, campaignOf, saleGross, saleNet, toBase } from '../lib/metrics';
 import { money, num, shortDate } from '../lib/format';
 import { today } from '../lib/dates';
-import { uid, upsert, useDb } from '../lib/store';
+import { isCloudActive, uid, upsert, useDb } from '../lib/store';
 
 // Produtos pausados continuam na lista (no fim) para não trocar o produto ao editar lançamentos antigos
 const productOptions = (db: Database) =>
@@ -23,11 +22,15 @@ const sum = <T,>(xs: T[], fn: (x: T) => number) => xs.reduce((a, x) => a + fn(x)
 const base = (db: Database) => db.settings.baseCurrency;
 const orig = (v: number, cur: string) => money(v, cur);
 
-const NeedProduct = () => (
-  <>
-    Cadastre primeiro um <Link to="/produtos">produto/oferta</Link> para lançar receitas e tráfego.
-  </>
-);
+const NeedProduct = () => {
+  const db = useDb();
+  if (db.products.length) return <>Nenhum lançamento no período.</>;
+  return (
+    <>
+      Cadastre primeiro um <Link to="/produtos">produto/oferta</Link> para lançar receitas e tráfego.
+    </>
+  );
+};
 
 const currencyFields: Field[] = [{ key: 'currency', label: 'Moeda', type: 'currency' }];
 
@@ -60,19 +63,21 @@ const blankSale = (db: Database, over: Partial<Sale> = {}) => ({
 });
 
 export function SalesPage() {
+  const cloud = isCloudActive();
   return (
     <Crud<Sale>
       title="Receitas"
-      subtitle="Vendas das plataformas entram sozinhas, por webhook, na hora (🔒): aprovações, reembolsos e chargebacks. Lance aqui só o que não vem por webhook."
-      collection="sales"
-      locked={(s) => (s.origin === 'auto' ? `Recebida automaticamente (${s.platform}). Detalhes em Integrações → Vendas recebidas.` : null)}
-      byPeriod
-      header={
-        <>
-          <BulkSalesButton />
-          <RevenuePanel />
-        </>
+      subtitle={
+        cloud
+          ? 'Importe a lista de clientes de cada plataforma (CSV ou Excel exportado do painel). As vendas entram no faturamento, no lucro e nos relatórios.'
+          : 'Lance as vendas do período. Para importar a lista de clientes das plataformas, conecte o Supabase em Configurações.'
       }
+      collection="sales"
+      byPeriod
+      header={cloud ? <CustomerList /> : undefined}
+      // as vendas importadas já aparecem na lista de clientes; aqui ficam só os lançamentos manuais
+      filter={cloud ? (s) => s.origin !== 'auto' : undefined}
+      tableTitle={cloud ? 'Lançamentos manuais (histórico e ajustes)' : undefined}
       fields={saleFields}
       emptyHint={<NeedProduct />}
       blank={(db) => blankSale(db)}

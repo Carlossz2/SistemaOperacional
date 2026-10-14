@@ -196,6 +196,15 @@ Deno.test({ name: 'planilha: importa histórico sem duplicar com o webhook e sem
   assertEquals((await call({ platform: 'hotmart', items: [item('X')] }, 'Bearer token-falso')).status, 401);
   assertEquals((await call({ platform: 'nada', items: [] })).status, 400);
   assertEquals((await call({ platform: 'hotmart', items: Array.from({ length: 501 }, (_, i) => item('L' + i)) })).status, 400);
+  // plataforma não conectada, só pelo nome (Kiwify): entra com o nome e consolida em Receitas
+  assertEquals((await call({ platform: 'generic', items: [item('K1')] })).status, 400, 'outra plataforma sem nome');
+  res = await call({ platform: 'generic', platformName: '  Kiwífy ', items: [item('K1', { buyerName: 'Ana', buyerEmail: 'ana@ex.com' }), item('K2')] });
+  body = await res.json();
+  assertEquals(body.imported, 2, JSON.stringify(body));
+  const { data: kw } = await sb.from('transactions').select('platform, platform_label, buyer_name, integration_id').eq('platform', 'outra:kiwify').order('external_id');
+  assertEquals(kw!.map((t) => [t.platform_label, t.buyer_name, t.integration_id]), [['Kiwífy', 'Ana', null], ['Kiwífy', null, null]]);
+  const { data: kws } = await sb.from('sales').select('quantity').eq('origin', 'auto').eq('platform', 'Kiwífy');
+  assertEquals(kws!.reduce((a, x) => a + Number(x.quantity), 0), 2, 'consolidado em Receitas com o nome da plataforma');
 }});
 
 Deno.test({ name: 'Mercado Pago: pede relatório, importa quando fica pronto, sem duplicar; app só lê', ...opts, fn: async () => {

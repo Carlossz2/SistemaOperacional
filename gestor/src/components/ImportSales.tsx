@@ -55,7 +55,9 @@ const show = (v: Cell) => (v instanceof Date ? v.toLocaleString('pt-BR') : v ===
 
 export function ImportSales({ onClose, defaultPlatform }: { onClose: () => void; defaultPlatform?: PlatformKey }) {
   const db = useDb();
-  const [platform, setPlatform] = useState<PlatformKey>(defaultPlatform && PLATFORMS.includes(defaultPlatform) ? defaultPlatform : 'hotmart');
+  const [platform, setPlatform] = useState<PlatformKey>(defaultPlatform && (PLATFORMS.includes(defaultPlatform) || defaultPlatform === 'generic') ? defaultPlatform : 'hotmart');
+  // "Outra plataforma": só o nome (Kiwify, Eduzz, Ticto…), sem precisar conectar
+  const [otherName, setOtherName] = useState('');
   const [fileName, setFileName] = useState('');
   const [headers, setHeaders] = useState<Cell[]>([]);
   const [rows, setRows] = useState<Cell[][]>([]);
@@ -104,7 +106,9 @@ export function ImportSales({ onClose, defaultPlatform }: { onClose: () => void;
     const failed: { externalId: string; message: string }[] = [];
     setProgress({ done: 0, total: items.length });
     for (let i = 0; i < items.length; i += CHUNK) {
-      const { data, error: e } = await supabase().functions.invoke('import-sales', { body: { platform, items: items.slice(i, i + CHUNK) } });
+      const { data, error: e } = await supabase().functions.invoke('import-sales', {
+        body: { platform, platformName: platform === 'generic' ? otherName.trim() : undefined, items: items.slice(i, i + CHUNK) },
+      });
       if (e) {
         failed.push({ externalId: `lote ${i / CHUNK + 1}`, message: e.message });
       } else {
@@ -127,9 +131,9 @@ export function ImportSales({ onClose, defaultPlatform }: { onClose: () => void;
 
   return (
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && !progress && onClose()}>
-      <div className="modal modal-wide" role="dialog" aria-label="Importar vendas por planilha">
+      <div className="modal modal-wide" role="dialog" aria-label="Importar lista de clientes">
         <div className="modal-head">
-          <h2 style={{ margin: 0 }}>Importar vendas por planilha</h2>
+          <h2 style={{ margin: 0 }}>Importar lista de clientes / vendas</h2>
           <button type="button" className="ghost" onClick={onClose} aria-label="Fechar" disabled={Boolean(progress)}>
             <Icon name="close" />
           </button>
@@ -142,8 +146,15 @@ export function ImportSales({ onClose, defaultPlatform }: { onClose: () => void;
               {PLATFORMS.map((p) => (
                 <option key={p} value={p}>{ADAPTERS[p].label}</option>
               ))}
+              <option value="generic">Outra plataforma…</option>
             </select>
           </label>
+          {platform === 'generic' && (
+            <label className="field">
+              Nome da plataforma
+              <input value={otherName} onChange={(e) => setOtherName(e.target.value)} maxLength={40} placeholder="Ex.: Kiwify, Eduzz, Ticto" disabled={Boolean(progress)} />
+            </label>
+          )}
           <label className="field">
             Arquivo exportado (.csv ou .xlsx)
             <input type="file" accept=".csv,.txt,.xlsx" aria-label="Arquivo da planilha" disabled={Boolean(progress)} onChange={(e) => e.target.files?.[0] && void load(e.target.files[0])} />
@@ -266,7 +277,7 @@ export function ImportSales({ onClose, defaultPlatform }: { onClose: () => void;
             {result ? 'Fechar' : 'Cancelar'}
           </button>
           {!result && (
-            <button type="button" className="primary" onClick={run} disabled={Boolean(progress) || !preview?.items.length || missing.length > 0}>
+            <button type="button" className="primary" onClick={run} disabled={Boolean(progress) || !preview?.items.length || missing.length > 0 || (platform === 'generic' && !otherName.trim())}>
               <Icon name="upload" size={15} /> Importar {preview?.items.length ? num(preview.items.length) : ''} venda(s)
             </button>
           )}

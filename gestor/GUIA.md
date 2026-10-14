@@ -71,33 +71,19 @@ Se você usou o app antes (dados só no navegador):
 - **No mesmo navegador:** depois de entrar, vá em *Configurações → Nuvem → Enviar para a nuvem*.
 - **De outro navegador:** lá, *Configurações → Exportar backup*; no app publicado, *Configurações → Restaurar backup*.
 
-## 7. Conectar as plataformas de venda
+## 7. Vendas: importar a lista de clientes
 
-Em **Receitas → Conectar plataforma** (ou *Integrações → Conexões*), escolha a plataforma e clique no botão. Para cada uma:
+As vendas entram por planilha, sem conectar as plataformas. Uma vez por mês (ou quando quiser):
 
-1. Copie a **URL do webhook** gerada.
-2. No painel da plataforma, cadastre um webhook com essa URL e ative os eventos indicados no cartão.
-3. Copie o segredo/token que a plataforma mostra e salve no campo do cartão (ele não é exibido de volta).
-4. Envie um **evento de teste** pela plataforma e confira em **Integrações → Eventos recebidos**.
+1. No painel da plataforma, exporte o relatório de vendas (CSV ou Excel .xlsx). Hotmart: Vendas → Exportar; Cakto: Vendas/Pedidos → Exportar; as demais têm opção parecida.
+2. Em **Receitas → Importar lista de clientes**, escolha a plataforma — se não estiver na lista (Kiwify, Eduzz, Ticto…), escolha **Outra plataforma** e digite o nome — e envie o arquivo.
+3. Confira as colunas reconhecidas (dá para ajustar) e a prévia, e clique em **Importar**.
 
-| Plataforma | Onde configurar | Segredo |
-|---|---|---|
-| Hotmart | Ferramentas → Webhook (API e Notificações) | Hottok (enviado no cabeçalho) |
-| Cakto | Integrações → Webhooks | campo *Secret* |
-| Lastlink | Integrações → Webhook | token de validação |
-| GGCheckout | Integrações → Webhooks | campo *Secret* |
-| PerfectPay | Ferramentas → Postback/Webhook | token do postback |
-| Outra | — | use **"Outra plataforma"** e informe onde ficam os campos no JSON |
+Importar o mesmo relatório de novo não duplica, e uma venda reembolsada não volta a "aprovada". Cada produto vendido é criado automaticamente pelo nome.
 
-**Taxas:** Hotmart e Cakto informam as taxas no webhook. Para as demais, preencha **"Taxa %"** no cartão (ex.: 9,9) para o lucro sair correto; vendas com taxa estimada aparecem com `*`.
+A aba **Receitas** mostra a **lista de clientes** do período (data, nome e e-mail, produto, plataforma, país, valor e status), com busca e filtros por produto, plataforma, país e status, e o botão **CSV** para exportar o que está filtrado. Abaixo ficam os **lançamentos manuais** (o histórico lançado à mão e ajustes), que continuam editáveis.
 
-**Acompanhamento:** a aba **Receitas** mostra a situação de cada plataforma (recebendo, aguardando a 1ª venda, eventos com erro), faturamento, taxas, reembolsos, líquido, ticket médio e taxa de reembolso do período, a receita por plataforma e por produto, e a lista das vendas recebidas, que se atualiza sozinha.
-
-**Primeira venda real de cada plataforma:** confira em *Eventos recebidos* se valor, produto e taxa saíram certos. O conteúdo recebido fica guardado (ícone 👁); se algo vier diferente, o adaptador é ajustado e você clica em **Reprocessar** — nada se perde.
-
-**Vendas antigas (antes de conectar):** o webhook só traz as vendas novas. Para o histórico, exporte o relatório de vendas da plataforma (CSV ou Excel .xlsx) e use **Receitas → Importar planilha**: o sistema reconhece as colunas (dá para ajustar), mostra uma prévia e importa sem duplicar o que já veio por webhook — e uma venda reembolsada não volta a "aprovada".
-
-**Produtos:** cada produto vendido é criado automaticamente. Para juntar o mesmo produto de plataformas diferentes, use **Integrações → Produtos das plataformas**.
+**Não importe planilhas de meses que já foram lançados à mão como totais** (ex.: o histórico de jan–out/2026): as vendas seriam contadas duas vezes.
 
 ## 8. Conectar a Meta Ads
 

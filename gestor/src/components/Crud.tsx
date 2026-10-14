@@ -49,6 +49,8 @@ interface Props<T extends { id: string }> {
   locked?: (item: T) => string | null;
   /** Conteúdo entre o filtro de período e a tabela (ex.: painel de performance) */
   header?: ReactNode;
+  /** Título do cartão da tabela (quando a página tem outros cartões acima) */
+  tableTitle?: ReactNode;
   /** Filtro extra da lista (ex.: produto/campanha escolhidos no painel) */
   filter?: (item: T) => boolean;
 }
@@ -103,6 +105,13 @@ export function Crud<T extends { id: string; date?: string }>(props: Props<T>) {
       {props.header}
 
       <div className="card">
+        {props.tableTitle && (
+          <div className="card-head">
+            <div className="card-title">
+              <h2>{props.tableTitle}</h2>
+            </div>
+          </div>
+        )}
         {props.search && (
           <div className="toolbar">
             <input placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 260 }} />
