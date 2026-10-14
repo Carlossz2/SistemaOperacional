@@ -179,7 +179,14 @@ export function Dashboard() {
         <MiniKpi label="CPA" value={t.cpa === null ? '—' : m(t.cpa)} current={t.cpa} previous={p.cpa} inverse title="Ads ÷ nº de vendas" />
         <MiniKpi label="Vendas" value={num(t.units)} current={t.units} previous={p.units} />
         <MiniKpi label="Ticket médio" value={t.aov === null ? '—' : m(t.aov)} current={t.aov} previous={p.aov} />
-        <MiniKpi label="Investimento em ads" value={m(t.ads)} current={t.ads} previous={p.ads} inverse />
+        <MiniKpi
+          label="Investimento em ads"
+          value={m(t.ads)}
+          current={t.ads}
+          previous={p.ads}
+          inverse
+          extra={t.adTax > 0 ? <span className="muted small">+ {m(t.adTax)} de impostos da Meta</span> : undefined}
+        />
         <MiniKpi label="Receita líquida" value={m(t.net)} current={t.net} previous={p.net} title="Bruto − taxas − reembolsos" />
         <MiniKpi label="Taxa de reembolso" value={pct(t.refundRate)} current={t.refundRate} previous={p.refundRate} inverse />
       </div>

@@ -24,6 +24,8 @@ export const DEFAULT_SETTINGS: Settings = {
   baseCurrency: 'BRL',
   rates: { BRL: 1, USD: 5.4, EUR: 5.9, GBP: 6.9, MXN: 0.3, COP: 0.0013, ARS: 0.0045, CLP: 0.0057, PEN: 1.45 },
   taxRate: 6,
+  taxBase: 'net',
+  adTaxRate: 0,
   businessName: 'CADIGITAL',
   timezone: 'America/Sao_Paulo',
   platforms: ['Hotmart', 'Kiwify', 'Eduzz', 'Monetizze', 'Braip', 'ClickBank', 'Digistore24', 'BuyGoods', 'Stripe', 'PayPal'],

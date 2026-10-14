@@ -307,6 +307,8 @@ td.pos, .pos-text { color: var(--good-text); }
 .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 18px; width: min(640px, 100%); max-height: 92vh; overflow: auto; padding: 22px; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .form-error { color: var(--bad-text); font-size: 13px; margin: 14px 0 0; }
+.modal-wide { width: min(980px, 100%); }
+.map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
 /* ---------- Gráficos ---------- */

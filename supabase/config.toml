@@ -16,3 +16,7 @@ verify_jwt = false
 # Extrato do Mercado Pago (JWT do usuário validado dentro da função).
 [functions.bank-sync]
 verify_jwt = false
+
+# Importação de vendas por planilha (JWT do usuário validado dentro da função).
+[functions.import-sales]
+verify_jwt = false

@@ -55,6 +55,7 @@ const functions: Record<string, (req: Request) => Promise<Response>> = {
   reprocess: (await import('../../functions/reprocess/handler.ts')).handler,
   'meta-sync': (await import('../../functions/meta-sync/handler.ts')).handler,
   'bank-sync': (await import('../../functions/bank-sync/handler.ts')).handler,
+  'import-sales': (await import('../../functions/import-sales/handler.ts')).handler,
 };
 
 const CORS = {

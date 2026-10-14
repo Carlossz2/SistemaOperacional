@@ -87,8 +87,12 @@ export interface Settings {
   baseCurrency: string;
   /** Cotações padrão: 1 unidade da moeda = X na moeda base */
   rates: Record<string, number>;
-  /** Alíquota estimada de imposto sobre a receita líquida (%), ex: Simples Nacional */
+  /** Imposto do CNPJ (%), ex.: Simples Nacional */
   taxRate: number;
+  /** Base do imposto do CNPJ: receita líquida (padrão) ou faturamento bruto */
+  taxBase?: 'net' | 'gross';
+  /** Impostos cobrados pela Meta sobre o valor dos anúncios (%), ex.: PIS/COFINS + ISS + IOF */
+  adTaxRate?: number;
   businessName: string;
   /** Fuso usado para definir o dia das vendas recebidas por webhook */
   timezone: string;
