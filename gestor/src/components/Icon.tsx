@@ -24,6 +24,7 @@ const PATHS: Record<string, string> = {
   cash: 'M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 9v.01M18 15v.01',
   trend: 'M3 17l6-6 4 4 8-8M15 7h6v6',
   coins: 'M9 14a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM15 10.2A6 6 0 1 1 9.8 16',
+  file: 'M6 2h8l4 4v16H6zM14 2v4h4M9 13h6M9 17h6',
   calendar: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
   logo: 'M5 5h6v6H5zM13 13h6v6h-6zM13 5h6v6h-6z',

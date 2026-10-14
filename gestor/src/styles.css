@@ -437,3 +437,8 @@ td.pos, .pos-text { color: var(--good-text); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin svg { animation: spin 0.9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .spin svg { animation: none; } }
+
+/* documentos */
+.dropzone { display: flex; align-items: center; gap: 14px; padding: 22px; border: 1.5px dashed var(--border-strong); border-radius: 14px; cursor: pointer; color: var(--ink-2); }
+.dropzone:hover, .dropzone.over, .dropzone:focus-visible { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); outline: none; }
+.file-badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 2px 5px; border-radius: 5px; background: var(--surface-2); color: var(--ink-2); margin-right: 4px; vertical-align: 1px; }
