@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Crud, EntryForm, type Field } from '../components/Crud';
 import { BankPanel } from '../components/BankPanel';
+import { BulkSalesButton } from '../components/BulkSales';
 import { RevenuePanel } from '../components/RevenuePanel';
 import { TrafficPanel, type TrafficFilter } from '../components/TrafficPanel';
 import type { AdSpend, CapitalMove, Database, Expense, Product, Sale } from '../lib/types';
@@ -66,7 +67,12 @@ export function SalesPage() {
       collection="sales"
       locked={(s) => (s.origin === 'auto' ? `Recebida automaticamente (${s.platform}). Detalhes em Integrações → Vendas recebidas.` : null)}
       byPeriod
-      header={<RevenuePanel />}
+      header={
+        <>
+          <BulkSalesButton />
+          <RevenuePanel />
+        </>
+      }
       fields={saleFields}
       emptyHint={<NeedProduct />}
       blank={(db) => blankSale(db)}
