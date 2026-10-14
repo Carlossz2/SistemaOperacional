@@ -173,19 +173,30 @@ export function Dashboard() {
         />
       </div>
 
-      <div className="grid mini-row">
+      <div className="grid mini-row five">
         <MiniKpi label="ROAS" value={ratio(t.roas)} current={t.roas} previous={p.roas} title="Faturamento bruto ÷ ads" />
         <MiniKpi label="ROI" value={pct(t.roi)} current={t.roi} previous={p.roi} title="Lucro ÷ (ads + despesas)" />
         <MiniKpi label="CPA" value={t.cpa === null ? '—' : m(t.cpa)} current={t.cpa} previous={p.cpa} inverse title="Ads ÷ nº de vendas" />
         <MiniKpi label="Vendas" value={num(t.units)} current={t.units} previous={p.units} />
         <MiniKpi label="Ticket médio" value={t.aov === null ? '—' : m(t.aov)} current={t.aov} previous={p.aov} />
+        <MiniKpi label="Investimento em ads" value={m(t.ads)} current={t.ads} previous={p.ads} inverse />
         <MiniKpi
-          label="Investimento em ads"
-          value={m(t.ads)}
-          current={t.ads}
-          previous={p.ads}
+          label="Imposto da Meta"
+          value={m(t.adTax)}
+          current={t.adTax}
+          previous={p.adTax}
           inverse
-          extra={t.adTax > 0 ? <span className="muted small">+ {m(t.adTax)} de impostos da Meta</span> : undefined}
+          title={`${num(db.settings.adTaxRate ?? 0, 2)}% sobre o gasto com a Meta`}
+          extra={!db.settings.adTaxRate ? <Link to="/configuracoes" className="small">Definir % em Configurações</Link> : undefined}
+        />
+        <MiniKpi
+          label="Imposto do CNPJ"
+          value={m(t.taxCompany)}
+          current={t.taxCompany}
+          previous={p.taxCompany}
+          inverse
+          title={`${num(db.settings.taxRate ?? 0, 2)}% sobre ${db.settings.taxBase === 'gross' ? 'o faturamento bruto' : 'a receita líquida'}`}
+          extra={!db.settings.taxRate ? <Link to="/configuracoes" className="small">Definir % em Configurações</Link> : undefined}
         />
         <MiniKpi label="Receita líquida" value={m(t.net)} current={t.net} previous={p.net} title="Bruto − taxas − reembolsos" />
         <MiniKpi label="Taxa de reembolso" value={pct(t.refundRate)} current={t.refundRate} previous={p.refundRate} inverse />
