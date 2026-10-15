@@ -27,7 +27,6 @@ const PATHS: Record<string, string> = {
   file: 'M6 2h8l4 4v16H6zM14 2v4h4M9 13h6M9 17h6',
   calendar: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
-  logo: 'M5 5h6v6H5zM13 13h6v6h-6zM13 5h6v6h-6z',
   cloud: 'M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8H7z',
   plug: 'M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0V8zM12 17v5',
   lock: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
@@ -37,6 +36,7 @@ const PATHS: Record<string, string> = {
   refresh: 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
   shield: 'M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3zM9 12l2 2 4-4',
   layout: 'M4 4h16v6H4zM4 14h7v6H4zM15 14h5v6h-5z',
+  users: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.2a3.5 3.5 0 0 1 0 6.6',
 };
 
 export function Icon({ name, size = 18 }: { name: keyof typeof PATHS | string; size?: number }) {
