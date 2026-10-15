@@ -3,7 +3,7 @@
 // Arquivos estáticos (JS/CSS com hash, ícones, fontes): cache primeiro.
 // __BUILD_ID__ é trocado a cada build: um sw.js diferente faz o navegador instalar a versão nova.
 const CACHE = 'gestor-dr-__BUILD_ID__';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/logo-192.png', './icons/logo-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
