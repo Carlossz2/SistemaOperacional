@@ -126,7 +126,7 @@ export function Dashboard() {
           <HeroKpi
             label="Faturamento bruto"
             icon="cash"
-            color="var(--series-1)"
+            color="var(--series-5)"
             value={m(t.gross)}
             fill={t.gross ? t.net / t.gross : 0}
             fillLabel={`${pct(t.gross ? t.net / t.gross : null, 0)} vira líquido`}
@@ -149,7 +149,7 @@ export function Dashboard() {
           <HeroKpi
             label="Lucro líquido"
             icon="coins"
-            color="var(--series-3)"
+            color={t.profit < 0 ? 'var(--neg)' : 'var(--pos)'}
             value={m(t.profit)}
             negative={t.profit < 0}
             fill={t.margin ?? 0}
@@ -161,13 +161,13 @@ export function Dashboard() {
           <HeroKpi
             label={cash.source === 'mercadopago' ? 'Caixa (Mercado Pago)' : 'Caixa'}
             icon="wallet"
-            color="var(--series-5)"
+            color="var(--ink)"
             value={cash.value === null ? '—' : m(cash.value)}
             negative={cash.value !== null && cash.value < 0}
             fill={moved ? cash.inflow / moved : 0}
             fillLabel={
               moved
-                ? `${pct(cash.inflow / moved, 0)} do movimento foi entrada`
+                ? `${pct(cash.inflow / moved, 0)} entradas`
                 : cash.source === 'mercadopago' && cash.startDate && cash.value === null
                   ? `controle desde ${shortDate(cash.startDate)}`
                   : 'sem movimento no período'

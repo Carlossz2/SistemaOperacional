@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { getCloudConfig, getMode, normalizeUrl, saveCloudConfig, setMode, validateConfig, envConfig } from '../lib/cloud/config';
 import { currentUserId, startCloud, stopCloud, supabase } from '../lib/cloud/sync';
 import { startLocal } from '../lib/store';
-import { Icon } from './Icon';
+import { LogoMark } from './Logo';
 
 const IDLE_KEY = 'gestor-dr:idle-minutes';
 export const getIdleMinutes = () => {
@@ -213,7 +213,7 @@ function Splash() {
     <div className="auth-wrap">
       <div className="auth-card" style={{ textAlign: 'center' }}>
         <span className="brand-logo" style={{ margin: '0 auto 14px', width: 40, height: 40 }}>
-          <Icon name="logo" size={20} />
+          <LogoMark size={28} />
         </span>
         <p className="muted">Carregando seus dados…</p>
       </div>
@@ -227,7 +227,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
       <div className="auth-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
           <span className="brand-logo">
-            <Icon name="logo" size={16} />
+            <LogoMark size={22} />
           </span>
           <b>CADIGITAL</b>
         </div>

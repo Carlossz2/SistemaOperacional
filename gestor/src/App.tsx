@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { HashRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { PeriodProvider } from './lib/period';
 import { Icon } from './components/Icon';
+import { LogoMark } from './components/Logo';
 import { promptInstall, usePwa, useUpdating } from './lib/pwa';
 import { CloudGate, signOut } from './components/CloudGate';
 import { useSyncStatus } from './lib/cloud/sync';
@@ -72,7 +73,7 @@ function Shell() {
         <aside className={`sidebar ${open ? 'open' : ''}`}>
           <div className="brand">
             <span className="brand-logo">
-              <Icon name="logo" size={16} />
+              <LogoMark size={22} />
             </span>
             <span className="brand-name">CADIGITAL</span>
           </div>
