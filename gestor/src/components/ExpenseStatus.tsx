@@ -106,7 +106,7 @@ function StatusDialog({ expense: e, action, onClose }: { expense: Expense; actio
 export function ExpenseStatusFilter({ items, value, onChange }: { items: Expense[]; value: ExpenseStatus | ''; onChange: (v: ExpenseStatus | '') => void }) {
   const count = (s: ExpenseStatus) => items.filter((e) => statusOf(e, thisMonth()) === s).length;
   return (
-    <div className="segmented" role="tablist" aria-label="Filtrar por status" style={{ marginBottom: 12 }}>
+    <div className="segmented" role="tablist" aria-label="Filtrar por status">
       <button role="tab" aria-selected={value === ''} className={value === '' ? 'on' : ''} onClick={() => onChange('')}>
         Todas ({items.length})
       </button>
