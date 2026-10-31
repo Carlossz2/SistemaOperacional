@@ -4,7 +4,9 @@ import { Crud, EntryForm, type Field } from '../components/Crud';
 import { BankPanel } from '../components/BankPanel';
 import { CustomerList } from '../components/CustomerList';
 import { TrafficPanel, type TrafficFilter } from '../components/TrafficPanel';
-import type { AdSpend, CapitalMove, Database, Expense, Product, Sale } from '../lib/types';
+import type { AdSpend, CapitalMove, Database, Expense, ExpenseStatus, Product, Sale } from '../lib/types';
+import { ExpenseStatusCell, ExpenseStatusFilter } from '../components/ExpenseStatus';
+import { chargedIn, EXPENSE_STATUS, statusOf } from '../lib/expenseStatus';
 import { adBase, campaignNames, campaignOf, saleGross, saleNet, toBase } from '../lib/metrics';
 import { money, num, shortDate } from '../lib/format';
 import { today } from '../lib/dates';
@@ -183,11 +185,16 @@ export function AdsPage() {
 }
 
 export function ExpensesPage() {
+  const db = useDb();
+  const [status, setStatus] = useState<ExpenseStatus | ''>('');
+  const month = today().slice(0, 7);
   return (
     <Crud<Expense>
       title="Despesas"
-      subtitle="Custos da operação: ferramentas, equipe, criativos, contabilidade… Marque como mensal para assinaturas e salários."
+      subtitle="Custos da operação: ferramentas, equipe, criativos, contabilidade… Marque como mensal para assinaturas e salários. Clique no status para pausar, cancelar ou reativar."
       collection="expenses"
+      header={<ExpenseStatusFilter items={db.expenses} value={status} onChange={setStatus} />}
+      filter={status ? (e) => statusOf(e, month) === status : undefined}
       search={(e, db) => `${e.description} ${e.category} ${productName(db, e.productId)}`}
       fields={[
         { key: 'date', label: 'Data (1ª cobrança)', type: 'date', required: true },
@@ -211,12 +218,6 @@ export function ExpensesPage() {
             { value: 'monthly', label: 'Mensal' },
           ],
         },
-        {
-          key: 'endMonth',
-          label: 'Cobrada até (mês) — vazio = ativa',
-          type: 'month',
-          showIf: (d) => d.recurrence === 'monthly',
-        },
         { key: 'productId', label: 'Atribuir a um produto (opcional)', type: 'select', options: productOptions },
         { key: 'notes', label: 'Observações', type: 'textarea', span2: true },
       ]}
@@ -235,23 +236,20 @@ export function ExpensesPage() {
         { label: 'Categoria', render: (e) => e.category, csv: (e) => e.category },
         {
           label: 'Recorrência',
-          render: (e) =>
-            e.recurrence === 'monthly' ? (
-              <span className="pill">{e.endMonth ? `Mensal até ${e.endMonth}` : 'Mensal'}</span>
-            ) : (
-              'Única'
-            ),
+          render: (e) => (e.recurrence === 'monthly' ? <span className="pill">Mensal</span> : 'Única'),
           csv: (e) => (e.recurrence === 'monthly' ? 'Mensal' : 'Única'),
         },
+        { label: 'Status', render: (e) => <ExpenseStatusCell expense={e} />, csv: (e) => EXPENSE_STATUS[statusOf(e, month)].label },
         { label: 'Produto', render: (e, db) => productName(db, e.productId), csv: (e, db) => productName(db, e.productId) },
         { label: 'Valor', num: true, render: (e, db) => money(toBase(e.amount, e.rate), base(db)), csv: (e) => toBase(e.amount, e.rate) },
       ]}
       footer={(items, db) => {
+        // só as mensais que de fato cobram neste mês (pausadas e canceladas ficam de fora)
         const monthly = sum(
-          items.filter((e) => e.recurrence === 'monthly' && (!e.endMonth || e.endMonth >= today().slice(0, 7))),
+          items.filter((e) => e.recurrence === 'monthly' && statusOf(e, month) === 'active' && chargedIn(e, month)),
           (e) => toBase(e.amount, e.rate),
         );
-        return ['Custo fixo mensal ativo', '', '', '', '', money(monthly, base(db))];
+        return ['Custo fixo mensal ativo', '', '', '', '', '', money(monthly, base(db))];
       }}
     />
   );

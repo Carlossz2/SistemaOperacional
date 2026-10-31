@@ -222,4 +222,25 @@ begin
 end $$;
 rollback;
 
+-- ---------------------------------------------------------------- status das despesas
+begin;
+select test.login('11111111-1111-1111-1111-111111111111');
+do $$
+begin
+  assert (select status from public.expenses where description = 'X') = 'active', 'despesa nova é ativa';
+  update public.expenses set status = 'paused', paused_from = '2026-11' where description = 'X';
+  update public.expenses set status = 'active', paused_from = null, pauses = '[{"from":"2026-11","to":"2026-12"}]' where description = 'X';
+  begin
+    update public.expenses set status = 'pausada' where description = 'X';
+    raise exception 'FALHA: status inválido aceito';
+  exception when check_violation then null;
+  end;
+  begin
+    update public.expenses set status = 'paused', paused_from = null where description = 'X';
+    raise exception 'FALHA: pausada sem mês de início';
+  exception when check_violation then null;
+  end;
+end $$;
+rollback;
+
 \echo 'schema.test.sql: OK'

@@ -63,6 +63,9 @@ export const fromRow = {
     productId: r.product_id ? String(r.product_id) : undefined,
     recurrence: r.recurrence as Expense['recurrence'],
     endMonth: r.end_month ? String(r.end_month) : undefined,
+    status: (r.status as Expense['status']) ?? 'active',
+    pausedFrom: r.paused_from ? String(r.paused_from) : undefined,
+    pauses: Array.isArray(r.pauses) && r.pauses.length ? (r.pauses as Expense['pauses']) : undefined,
     notes: opt(r.notes) as string | undefined,
   }),
   capital: (r: Row): CapitalMove => ({
@@ -128,6 +131,9 @@ export const toRow = {
     product_id: nul(e.productId),
     recurrence: e.recurrence,
     end_month: e.recurrence === 'monthly' ? nul(e.endMonth) : null,
+    status: e.status ?? 'active',
+    paused_from: e.status === 'paused' ? nul(e.pausedFrom) : null,
+    pauses: e.recurrence === 'monthly' ? (e.pauses ?? []) : [],
     notes: nul(e.notes),
   }),
   capital: (c: CapitalMove): Row => ({

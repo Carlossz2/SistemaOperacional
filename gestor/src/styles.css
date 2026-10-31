@@ -267,6 +267,10 @@ label.check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
   background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 12px;
   display: flex; flex-direction: column;
 }
+.menu-list button { justify-content: flex-start; border: 0; background: transparent; height: auto; padding: 8px 10px; font-size: 13px; }
+.menu-list button:hover { background: var(--surface-3); }
+.status-cell .menu-list { left: 0; right: auto; min-width: 150px; }
+.status-cell summary.status { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
 .menu-list a { padding: 8px 10px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 13px; }
 .menu-list a:hover { background: var(--surface-3); }
 
