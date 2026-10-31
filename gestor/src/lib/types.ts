@@ -107,6 +107,8 @@ export interface Settings {
   platforms: string[];
   adSources: string[];
   expenseCategories: string[];
+  /** Versão da lista padrão de categorias já oferecida (categorias novas entram uma vez só) */
+  expenseCategoriesVersion?: number;
   /** Visual do Dashboard: padrão ou terminal de mercado financeiro */
   dashboardTemplate?: DashboardTemplate;
 }

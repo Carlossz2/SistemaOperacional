@@ -187,14 +187,29 @@ export function AdsPage() {
 export function ExpensesPage() {
   const db = useDb();
   const [status, setStatus] = useState<ExpenseStatus | ''>('');
+  const [category, setCategory] = useState('');
   const month = today().slice(0, 7);
+  // categorias da lista + as que já estão em uso (mesmo se removidas da lista)
+  const categories = [...new Set([...db.settings.expenseCategories, ...db.expenses.map((e) => e.category)])];
   return (
     <Crud<Expense>
       title="Despesas"
       subtitle="Custos da operação: ferramentas, equipe, criativos, contabilidade… Marque como mensal para assinaturas e salários. Clique no status para pausar, cancelar ou reativar."
       collection="expenses"
-      header={<ExpenseStatusFilter items={db.expenses} value={status} onChange={setStatus} />}
-      filter={status ? (e) => statusOf(e, month) === status : undefined}
+      header={
+        <div className="toolbar" style={{ alignItems: 'flex-start' }}>
+          <ExpenseStatusFilter items={db.expenses} value={status} onChange={setStatus} />
+          <select aria-label="Filtrar por categoria" value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">Todas as categorias</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c} ({db.expenses.filter((e) => e.category === c).length})
+              </option>
+            ))}
+          </select>
+        </div>
+      }
+      filter={status || category ? (e) => (!status || statusOf(e, month) === status) && (!category || e.category === category) : undefined}
       search={(e, db) => `${e.description} ${e.category} ${productName(db, e.productId)}`}
       fields={[
         { key: 'date', label: 'Data (1ª cobrança)', type: 'date', required: true },

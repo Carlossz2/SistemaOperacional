@@ -20,7 +20,10 @@ export function setWriteHook(hook: ((op: WriteOp) => void) | null) {
   writeHook = hook;
 }
 
-export const DEFAULT_SETTINGS: Settings = {
+export /** Categorias adicionadas na versão 2 da lista padrão. */
+const NEW_EXPENSE_CATEGORIES = ['Trackeamento', 'Edição', 'IA', 'Criação de vídeos', 'Mineração', 'Voice Clone'];
+
+const DEFAULT_SETTINGS: Settings = {
   baseCurrency: 'BRL',
   rates: { BRL: 1, USD: 5.4, EUR: 5.9, GBP: 6.9, MXN: 0.3, COP: 0.0013, ARS: 0.0045, CLP: 0.0057, PEN: 1.45 },
   taxRate: 6,
@@ -40,8 +43,10 @@ export const DEFAULT_SETTINGS: Settings = {
     'Contingência (perfis, BMs)',
     'Educação',
     'Bancárias / Câmbio',
+    ...NEW_EXPENSE_CATEGORIES,
     'Outros',
   ],
+  expenseCategoriesVersion: 2,
 };
 
 export function emptyDb(): Database {
@@ -49,6 +54,14 @@ export function emptyDb(): Database {
 }
 
 /** Garante que um JSON vindo de backup/storage tenha todos os campos esperados. */
+/** Lista antiga: inclui as categorias novas uma vez só (antes de "Outros"); se depois forem apagadas, não voltam. */
+function upgradeCategories(list: string[], version = 1): string[] {
+  if (version >= 2) return list;
+  const missing = NEW_EXPENSE_CATEGORIES.filter((c) => !list.some((x) => x.toLowerCase() === c.toLowerCase()));
+  const i = list.indexOf('Outros');
+  return i >= 0 ? [...list.slice(0, i), ...missing, ...list.slice(i)] : [...list, ...missing];
+}
+
 export function normalize(raw: unknown): Database {
   const base = emptyDb();
   if (!raw || typeof raw !== 'object') return base;
@@ -57,6 +70,8 @@ export function normalize(raw: unknown): Database {
   const settings = { ...base.settings, ...(r.settings || {}), rates: { ...base.settings.rates, ...(r.settings?.rates || {}) } };
   // nome padrão antigo vira o nome da empresa
   if (!settings.businessName || settings.businessName === 'Minha Operação') settings.businessName = base.settings.businessName;
+  settings.expenseCategories = upgradeCategories(settings.expenseCategories, r.settings?.expenseCategoriesVersion);
+  settings.expenseCategoriesVersion = 2;
   return {
     version: 1,
     settings,
