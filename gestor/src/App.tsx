@@ -22,7 +22,7 @@ const NAV = [
   { to: '/trafego', label: 'Tráfego pago', icon: 'ads' },
   { to: '/despesas', label: 'Despesas', icon: 'expenses' },
   { to: '/caixa', label: 'Caixa & capital', icon: 'capital' },
-  { to: '/documentos', label: 'Documentos', icon: 'file' },
+  { to: '/documentos', label: 'Documentos', icon: 'folder' },
   { to: '/produtos', label: 'Produtos', icon: 'products' },
   { to: '/relatorios', label: 'Relatórios', icon: 'reports' },
   { to: '/integracoes', label: 'Integrações', icon: 'plug' },

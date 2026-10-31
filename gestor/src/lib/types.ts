@@ -70,7 +70,15 @@ export interface Expense extends MoneyEntry {
   recurrence: Recurrence;
   /** Para recorrentes: último mês (AAAA-MM) em que a despesa ainda é cobrada */
   endMonth?: string;
+  /** Situação: ativa (padrão), pausada ou cancelada */
+  status?: ExpenseStatus;
+  /** Pausada: primeiro mês (AAAA-MM) sem cobrança */
+  pausedFrom?: string;
+  /** Pausas já encerradas: meses (AAAA-MM, inclusive) em que não houve cobrança */
+  pauses?: { from: string; to: string }[];
 }
+
+export type ExpenseStatus = 'active' | 'paused' | 'canceled';
 
 /**
  * Movimentações de capital que não são custo operacional:

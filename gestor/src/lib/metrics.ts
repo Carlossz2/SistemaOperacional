@@ -1,5 +1,6 @@
 import type { AdSpend, CapitalMove, Database, Expense, Sale, Settings } from './types';
 import { addDays, addMonths, daysBetween, monthOf, monthsBetween, weekStart } from './dates';
+import { chargedIn } from './expenseStatus';
 
 export interface Filter {
   from: string;
@@ -48,13 +49,15 @@ export function expandExpenses(expenses: Expense[], from: string, to: string): E
   for (const e of expenses) {
     const amount = toBase(e.amount, e.rate);
     if (e.recurrence !== 'monthly') {
-      if (e.date >= from && e.date <= to) out.push({ expense: e, date: e.date, amount });
+      // despesa única cancelada não conta
+      if (e.status !== 'canceled' && e.date >= from && e.date <= to) out.push({ expense: e, date: e.date, amount });
       continue;
     }
     const day = Number(e.date.slice(8, 10));
     const start = monthOf(e.date) > monthOf(from) ? monthOf(e.date) : monthOf(from);
     const lastMonth = e.endMonth && e.endMonth < monthOf(to) ? e.endMonth : monthOf(to);
     for (let m = start; m <= lastMonth; m = addMonths(m, 1)) {
+      if (!chargedIn(e, m)) continue; // pausada nesse mês
       const date = `${m}-${String(Math.min(day, lastDayOfMonth(m))).padStart(2, '0')}`;
       if (date >= e.date && date >= from && date <= to) out.push({ expense: e, date, amount });
     }

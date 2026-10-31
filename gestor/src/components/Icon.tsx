@@ -2,7 +2,8 @@ const PATHS: Record<string, string> = {
   dashboard: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
   sales: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
   ads: 'M3 11l18-8v18L3 13v-2zm4 2v6',
-  expenses: 'M3 6h18M7 6V4h10v2M6 6l1 15h10l1-15',
+  // recibo (antes era parecido com a lixeira de excluir)
+  expenses: 'M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21zM9 8h6M9 12h6M9 16h3.5',
   capital: 'M3 21h18M5 21V10l7-6 7 6v11M9 21v-6h6v6',
   products: 'M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8',
   reports: 'M4 20V10M10 20V4M16 20v-8M22 20H2',
@@ -12,6 +13,8 @@ const PATHS: Record<string, string> = {
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
   copy: 'M8 8h12v12H8zM4 16V4h12',
   close: 'M6 6l12 12M18 6L6 18',
+  chevron: 'M6 9l6 6 6-6',
+  folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   menu: 'M3 6h18M3 12h18M3 18h18',
   download: 'M12 3v12m0 0l-5-5m5 5l5-5M4 21h16',
   upload: 'M12 21V9m0 0l-5 5m5-5l5 5M4 3h16',
